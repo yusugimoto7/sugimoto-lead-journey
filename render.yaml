@@ -10,7 +10,7 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: ODOO_URL
-        value: https://sugimotovisa.odoo.com
+        value: https://odoo.sugimotogroup.org
       - key: ODOO_DB
         sync: false
       - key: ODOO_USERNAME
@@ -20,4 +20,4 @@ services:
       - key: DASHBOARD_USER
         value: sugimoto
       - key: DASHBOARD_PASSWORD
-        sync: false
+        generateValue: true
