@@ -1,0 +1,91 @@
+require('dotenv').config();
+const path = require('path');
+const express = require('express');
+const { getData, state, CACHE_MS } = require('./lib/data');
+const A = require('./lib/analytics');
+const { baseUrl } = require('./lib/odoo');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/healthz', (_req, res) => res.send('ok'));
+
+// Optional HTTP Basic protection — the dashboard exposes lead names, emails and phone numbers.
+if (process.env.DASHBOARD_PASSWORD) {
+  const user = process.env.DASHBOARD_USER || 'sugimoto';
+  const expected = 'Basic ' + Buffer.from(`${user}:${process.env.DASHBOARD_PASSWORD}`).toString('base64');
+  app.use((req, res, next) => {
+    if (req.headers.authorization === expected) return next();
+    res.set('WWW-Authenticate', 'Basic realm="Sugimoto Dashboard"').status(401).send('Authentication required');
+  });
+} else {
+  console.warn('[security] DASHBOARD_PASSWORD not set: the dashboard is open to anyone with the URL');
+}
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+const route = (fn) => async (req, res) => {
+  try {
+    res.json(await fn(await getData(), req));
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+};
+
+app.get('/api/status', route((d) => ({
+  total_leads: d.leads.length,
+  last_sync: new Date(d.fetchedAt).toISOString(),
+  cache_age_seconds: Math.round((Date.now() - d.fetchedAt) / 1000),
+  cache_ttl_seconds: CACHE_MS / 1000,
+  syncing: !!state.promise,
+  last_error: state.error,
+  odoo_url: baseUrl(),
+  fields: {
+    contract_type: d.det.contractType, contract_value: d.det.contractValue,
+    segments: Object.fromEntries(Object.entries(d.det.segments).map(([k, v]) => [k, v.name])),
+    fetched: d.fields, skipped: d.missing,
+  },
+})));
+app.get('/api/fields', route((d) => ({ contract_related: d.det.contract, detected: { contractType: d.det.contractType, contractValue: d.det.contractValue, segments: d.det.segments } })));
+app.get('/api/refresh', async (_req, res) => {
+  try {
+    const d = await getData(true);
+    res.json({ refreshed: true, total_leads: d.leads.length, last_sync: new Date(d.fetchedAt).toISOString() });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+app.get('/api/summary', route((d) => A.summary(d.leads)));
+app.get('/api/sources', route((d) => A.sources(d.leads)));
+app.get('/api/journey', route((d) => A.journey(d.leads)));
+app.get('/api/lost', route((d) => A.lost(d.leads)));
+app.get('/api/sales', route((d) => A.sales(d.leads, d.det)));
+app.get('/api/deep', route((d) => A.deep(d.leads)));
+app.get('/api/segments', route((d) => A.segments(d.leads, d.det)));
+
+// Full lead explorer: server-side filter / sort / paging
+app.get('/api/leads', route((d, req) => {
+  const rows = A.filterLeads(d.leads, req.query);
+  const size = Math.min(Math.max(parseInt(req.query.size, 10) || 50, 1), 200);
+  const pages = Math.max(Math.ceil(rows.length / size), 1);
+  const page = Math.min(Math.max(parseInt(req.query.page, 10) || 1, 1), pages);
+  return {
+    total: rows.length, page, pages, size, facets: A.facets(d.leads), odoo_url: baseUrl(),
+    summary: A.counts(rows), rows: rows.slice((page - 1) * size, page * size),
+  };
+}));
+
+const CSV_COLS = ['id', 'name', 'partner', 'email', 'phone', 'country', 'created', 'closed', 'status', 'stage', 'phase',
+  'user', 'refUser', 'source', 'medium', 'campaign', 'lostReason', 'probability', 'contractType', 'contractValue', 'currency'];
+app.get('/api/leads.csv', async (req, res) => {
+  try {
+    const d = await getData();
+    const rows = A.filterLeads(d.leads, req.query);
+    const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const csv = [CSV_COLS.join(','), ...rows.map((r) => CSV_COLS.map((c) => esc(r[c])).join(','))].join('\n');
+    res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="leads.csv"' }).send('﻿' + csv);
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+app.listen(PORT, () => {
+  console.log(`Dashboard on http://localhost:${PORT}`);
+  getData().catch(() => {}); // warm the cache on boot
+});

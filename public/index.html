@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sugimoto Lead Journey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f6f6f4;--card:#fff;--ink:#16181d;--mute:#6b7280;--line:#e5e5e0;--accent:#2f4b7c;--accent-rgb:47,75,124;
+--c1:#2f4b7c;--c2:#c2792b;--c3:#3f8f7a;--c4:#a84a5c;--c5:#7a6aa8;--good:#2e7d5b;--bad:#b3413a}
+:root[data-theme=dark]{--bg:#0f1115;--card:#171a20;--ink:#eceef2;--mute:#8d95a3;--line:#262a33;--accent:#7ea2e0;--accent-rgb:126,162,224;
+--c1:#7ea2e0;--c2:#e0a15c;--c3:#6cc3aa;--c4:#e07f93;--c5:#a999d6;--good:#5cc79a;--bad:#e5776f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+.mono,.num{font-family:'DM Mono',monospace}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--card)}
+h1{font-size:17px;margin:0;font-weight:600;letter-spacing:-.01em}
+.sub{color:var(--mute);font-size:12px}
+button,select,input{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+button{cursor:pointer}button:hover{border-color:var(--accent)}
+nav{display:flex;gap:4px;overflow-x:auto;padding:8px 20px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:5}
+nav button{border:0;background:none;white-space:nowrap;color:var(--mute);padding:8px 12px;border-radius:6px}
+nav button.on{background:rgba(var(--accent-rgb),.12);color:var(--accent);font-weight:600}
+main{padding:20px;max-width:1280px;margin:0 auto}
+section{display:none}section.on{display:block}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:14px}
+.two{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.card h3{margin:0 0 10px;font-size:13px;font-weight:600}
+.kpi .l{color:var(--mute);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.kpi .v{font:500 24px 'DM Mono',monospace;margin-top:4px}
+.kpi .s{color:var(--mute);font-size:11px;margin-top:2px}
+.chart{position:relative;height:300px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mute);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+td.r,th.r{text-align:right;font-family:'DM Mono',monospace}
+.scroll{overflow:auto;max-height:560px}
+.bar{height:26px;border-radius:4px;background:rgba(var(--accent-rgb),.85);display:flex;align-items:center;padding:0 8px;color:#fff;font:500 12px 'DM Mono',monospace;white-space:nowrap;min-width:fit-content}
+.frow{display:grid;grid-template-columns:minmax(120px,210px) 1fr;gap:10px;align-items:center;margin:6px 0}
+.frow .n{font-size:12px}.frow .n small{color:var(--mute);display:block}
+.stages{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;border:1px solid var(--line)}
+.pill.Converted{color:var(--good);border-color:var(--good)}.pill.Lost{color:var(--bad);border-color:var(--bad)}
+.note{color:var(--mute);font-size:12px;padding:10px 0}
+.warn{background:rgba(179,65,58,.1);border:1px solid var(--bad);color:var(--bad);padding:10px 14px;border-radius:8px;margin-bottom:14px;display:none}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.filters input{min-width:200px}.filters select{max-width:170px}
+.pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px}
+tr.click{cursor:pointer}tr.click:hover td{background:rgba(var(--accent-rgb),.06)}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);max-width:640px;width:calc(100% - 32px);padding:20px}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+dl{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:0}dt{color:var(--mute)}dd{margin:0;word-break:break-word}
+.loading{color:var(--mute);padding:40px;text-align:center}
+@media(max-width:600px){main{padding:12px}header,nav{padding-left:12px;padding-right:12px}.chart{height:260px}dl{grid-template-columns:100px 1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Sugimoto Visa · Lead Journey</h1><div class="sub" id="status">Connecting to Odoo…</div></div>
+  <div style="display:flex;gap:8px"><button id="refresh">Refresh from Odoo</button><button id="theme" aria-label="Toggle theme">Theme</button></div>
+</header>
+<nav id="tabs"></nav>
+<main>
+  <div class="warn" id="err"></div>
+  <section id="t-overview"></section><section id="t-sources"></section><section id="t-journey"></section>
+  <section id="t-segments"></section><section id="t-lost"></section><section id="t-sales"></section>
+  <section id="t-deep"></section><section id="t-leads"></section>
+</main>
+<dialog id="dlg"></dialog>
+<script>
+const TABS=[['overview','Overview'],['sources','Lead Sources'],['journey','Lead Journey'],['segments','Segments'],['lost','Lost Leads'],['sales','Sales Performance'],['deep','Deep Analysis'],['leads','All Leads']];
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const n0=v=>v==null?'–':Number(v).toLocaleString('en-US',{maximumFractionDigits:0});
+const money=(v,c)=>c==='EUR'?'€'+n0(v):'C$'+n0(v);
+const store={};let charts={};let current='overview';
+
+async function api(p){const r=await fetch(p);const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j}
+async function cached(k){return store[k]||(store[k]=await api('/api/'+k))}
+function col(i){return getComputedStyle(document.documentElement).getPropertyValue('--c'+((i%5)+1)).trim()}
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+function mk(id,cfg){if(charts[id])charts[id].destroy();
+  cfg.options=Object.assign({responsive:true,maintainAspectRatio:false},cfg.options||{});
+  charts[id]=new Chart(document.getElementById(id),cfg)}
+const kpi=(l,v,s='')=>`<div class="card kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+const card=(t,body)=>`<div class="card"><h3>${t}</h3>${body}</div>`;
+const canvas=id=>`<div class="chart"><canvas id="${id}"></canvas></div>`;
+function applyChartTheme(){Chart.defaults.color=css('--mute');Chart.defaults.borderColor=css('--line');Chart.defaults.font.family='Inter'}
+
+function heat(m,label){
+  if(!m.rows.length)return '<div class="note">No data.</div>';
+  const max=Math.max(1,...m.cells.flat());
+  return `<div class="scroll"><table><tr><th>${label}</th>${m.cols.map(c=>`<th class="r">${esc(c)}</th>`).join('')}</tr>`+
+  m.rows.map((r,i)=>`<tr><td>${esc(r)}</td>${m.cells[i].map(v=>`<td class="r" style="background:rgba(var(--accent-rgb),${(v/max*.75).toFixed(2)})">${v||''}</td>`).join('')}</tr>`).join('')+'</table></div>';
+}
+
+const R={};
+R.overview=async el=>{
+  const s=await cached('summary'),t=s.totals;
+  const pending=t.open;
+  el.innerHTML=`<div class="grid kpis">${kpi('Total leads',n0(t.total),'since 2022')}${kpi('Lost',n0(t.lost),'inactive + reason')}${kpi('Pending',n0(pending),'open, not converted')}${kpi('Converted',n0(t.converted),'Stage 22')}${kpi('Conversion rate',t.rate+'%','converted / total')}</div>
+  <div class="grid two">${card('Leads per month',canvas('c-month'))}${card('By year',canvas('c-year'))}</div>`;
+  mk('c-month',{type:'line',data:{labels:s.monthly.map(m=>m.month),datasets:[
+    {label:'Leads',data:s.monthly.map(m=>m.total),borderColor:col(0),backgroundColor:col(0),pointRadius:0,tension:.25},
+    {label:'Converted',data:s.monthly.map(m=>m.converted),borderColor:col(2),backgroundColor:col(2),pointRadius:0,tension:.25}]},options:{interaction:{mode:'index',intersect:false}}});
+  mk('c-year',{type:'bar',data:{labels:s.byYear.map(y=>y.year),datasets:[
+    {label:'Total',data:s.byYear.map(y=>y.total),backgroundColor:col(0)},{label:'Converted',data:s.byYear.map(y=>y.converted),backgroundColor:col(2)},{label:'Lost',data:s.byYear.map(y=>y.lost),backgroundColor:col(3)}]}});
+};
+
+function dual(id,rows,limit=15){
+  rows=rows.slice(0,limit);
+  mk(id,{data:{labels:rows.map(r=>r.name),datasets:[
+    {type:'bar',label:'Leads',data:rows.map(r=>r.total),backgroundColor:col(0),yAxisID:'y'},
+    {type:'line',label:'Conversion %',data:rows.map(r=>r.rate),borderColor:col(1),backgroundColor:col(1),yAxisID:'y1',tension:.2}]},
+    options:{scales:{y:{position:'left',title:{display:true,text:'Leads'}},y1:{position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Conv. %'},ticks:{callback:v=>v+'%'}}}}});
+}
+R.sources=async el=>{
+  const s=await cached('sources');
+  el.innerHTML=`<div class="grid">${card('By source (top 15)',canvas('c-src'))}${card('By medium',canvas('c-med'))}${card('By campaign (top 15)',canvas('c-cam'))}</div>
+  <div class="note">Bars = lead volume, line = conversion rate (Stage 22 / total). Odoo's UTM model has no separate "content" dimension, so campaign is shown as the third cut.</div>`;
+  dual('c-src',s.source);dual('c-med',s.medium);dual('c-cam',s.campaign);
+};
+
+R.journey=async el=>{
+  const j=await cached('journey');
+  const max=Math.max(1,...j.phases.map(p=>p.reached));
+  el.innerHTML=card('Funnel by phase',`<div class="note">Bar = leads that reached this phase or beyond (by their current/last stage, so lost leads count up to where they stalled). Long-Term Nurture is outside the linear flow.</div>`+
+    j.phases.map(p=>`<div class="frow"><div class="n">${esc(p.phase)}<small>stages ${p.range}</small></div><div><div class="bar" style="width:${Math.max(p.reached/max*100,3)}%">${n0(p.reached)}</div><small class="sub">${n0(p.current)} currently here · ${n0(p.open)} open · ${n0(p.lost)} lost</small></div></div>`).join(''))+
+    `<h3 style="margin:18px 0 8px">Stage detail</h3><div class="grid stages">${j.stages.map(s=>`<div class="card kpi"><div class="l">${esc(s.phase)}</div><div style="font-weight:600;margin:2px 0">${esc(s.stage)}</div><div class="v">${n0(s.total)}</div><div class="s">${n0(s.open)} open · ${n0(s.lost)} lost · avg prob ${s.avgProbability??'–'}%</div></div>`).join('')}</div>`;
+};
+
+R.segments=async el=>{
+  const s=await cached('segments');
+  const blocks=[['budget','Budget distribution'],['immigration','Immigration paths'],['destination','Destination split']];
+  el.innerHTML=`<div class="grid two">${blocks.map(([k,t])=>s[k]?card(`${t} <span class="sub mono">${esc(s[k].field)}</span>`,canvas('c-'+k)):card(t,'<div class="note">No matching custom field found on crm.lead (looked for names/labels containing budget / immigration, program, path / destination). Check /api/status → fields.</div>')).join('')}${card('Country (Odoo country field)',canvas('c-country'))}</div>`;
+  for(const [k] of blocks) if(s[k]){const d=s[k].data.slice(0,12);
+    mk('c-'+k,{type:k==='immigration'?'bar':'doughnut',data:{labels:d.map(x=>x.name),datasets:[{label:'Leads',data:d.map(x=>x.total),backgroundColor:d.map((_,i)=>col(i))}]},options:k==='immigration'?{indexAxis:'y',plugins:{legend:{display:false}}}:{}})}
+  const c=s.country.slice(0,12);
+  mk('c-country',{type:'bar',data:{labels:c.map(x=>x.name),datasets:[{label:'Leads',data:c.map(x=>x.total),backgroundColor:col(0)}]},options:{indexAxis:'y',plugins:{legend:{display:false}}}});
+};
+
+R.lost=async el=>{
+  const l=await cached('lost');
+  el.innerHTML=`<div class="grid kpis">${kpi('Lost (with reason)',n0(l.total))}${kpi('Archived, no reason',n0(l.archivedWithoutReason),'not counted as lost')}</div>
+  <div class="grid two">${card('Lost by reason',canvas('c-lost'))}${card('Lost by stage',`<div class="scroll"><table><tr><th>Stage</th><th class="r">Lost</th><th class="r">Share</th></tr>${l.byStage.map(s=>`<tr><td>${esc(s.stage)}</td><td class="r">${n0(s.count)}</td><td class="r">${s.share}%</td></tr>`).join('')}</table></div>`)}</div>`;
+  const r=l.byReason.slice(0,15);
+  mk('c-lost',{type:'bar',data:{labels:r.map(x=>x.reason),datasets:[{label:'Lost leads',data:r.map(x=>x.count),backgroundColor:col(3)}]},options:{indexAxis:'y',plugins:{legend:{display:false}}}});
+};
+
+R.sales=async el=>{
+  const s=await cached('sales'),k=s.kpi;
+  el.innerHTML=`<div class="grid kpis">${kpi('Signed (Stage 22)',n0(k.signed))}${kpi('Draft sent (13)',n0(k.draftSent),'excluded from revenue')}${kpi('Main contract sent (18)',n0(k.mainContractSent),'excluded from revenue')}${kpi('Revenue CAD',money(k.revenue.CAD.total,'CAD'),n0(k.revenue.CAD.contracts)+' contracts')}${kpi('Revenue EUR',money(k.revenue.EUR.total,'EUR'),n0(k.revenue.EUR.contracts)+' contracts')}</div>
+  ${k.signedWithoutRevenue?`<div class="note">${k.signedWithoutRevenue} Stage-22 leads have no CA-/EU- contract type or no value and are not in revenue. Fields used: ${esc(s.fields.contractType)} / ${esc(s.fields.contractValue)}</div>`:''}
+  <div class="grid two">${card('Contract types',`<div class="scroll"><table><tr><th>Type</th><th class="r">Contracts</th><th class="r">Revenue</th><th class="r">Avg</th></tr>${s.contractTypes.map(t=>`<tr><td>${esc(t.type)}</td><td class="r">${n0(t.count)}</td><td class="r">${t.currency?money(t.revenue,t.currency):'–'}</td><td class="r">${t.currency&&t.avgValue?money(t.avgValue,t.currency):'–'}</td></tr>`).join('')}</table></div>`)}
+  ${card('Salespeople',`<div class="scroll"><table><tr><th>Name</th><th class="r">Leads</th><th class="r">Signed</th><th class="r">Rate</th><th class="r">CAD</th><th class="r">EUR</th></tr>${s.bySalesperson.map(p=>`<tr><td>${esc(p.name)}</td><td class="r">${n0(p.total)}</td><td class="r">${n0(p.converted)}</td><td class="r">${p.rate}%</td><td class="r">${money(p.revenue.CAD.total,'CAD')}</td><td class="r">${money(p.revenue.EUR.total,'EUR')}</td></tr>`).join('')}</table></div>`)}</div>`;
+};
+
+R.deep=async el=>{
+  const d=await cached('deep');
+  el.innerHTML=`<div class="grid">${card('Time in system by source (avg days)',canvas('c-time'))}
+  ${card('Campaign performance',`<div class="scroll"><table><tr><th>Campaign</th><th class="r">Leads</th><th class="r">Signed</th><th class="r">Rate</th><th class="r">Lost</th><th class="r">Days to sign</th><th class="r">CAD</th><th class="r">EUR</th></tr>${d.campaigns.map(c=>`<tr><td>${esc(c.name)}</td><td class="r">${n0(c.total)}</td><td class="r">${n0(c.converted)}</td><td class="r">${c.rate}%</td><td class="r">${n0(c.lost)}</td><td class="r">${c.avgDaysToConvert??'–'}</td><td class="r">${money(c.revenue.CAD.total,'CAD')}</td><td class="r">${money(c.revenue.EUR.total,'EUR')}</td></tr>`).join('')}</table></div>`)}
+  ${card('Lost leads: source × reason',heat(d.lostHeatmap,'Source'))}
+  ${card('Salesperson × source (all leads)',heat(d.salespersonSource,'Salesperson'))}
+  ${card('Salesperson × source (converted)',heat(d.salespersonSourceConverted,'Salesperson'))}</div>`;
+  const t=d.timeBySource.slice(0,12);
+  mk('c-time',{type:'bar',data:{labels:t.map(x=>x.name),datasets:[
+    {label:'Created → signed',data:t.map(x=>x.avgDaysToConvert),backgroundColor:col(2)},
+    {label:'Created → lost (approx., last update)',data:t.map(x=>x.avgDaysToLost),backgroundColor:col(3)},
+    {label:'Age of open leads',data:t.map(x=>x.avgOpenAge),backgroundColor:col(0)}]}});
+};
+
+// ---- All leads explorer ----
+const F={q:'',status:'',stage:'',year:'',source:'',user:'',reason:'',sort:'created',dir:'desc',page:1};
+R.leads=async el=>{
+  if(!el.dataset.init){
+    el.dataset.init=1;
+    el.innerHTML=`<div class="filters" id="lf"></div><div class="card"><div id="lsum" class="note"></div><div class="scroll"><table id="ltab"></table></div><div class="pager" id="lpg"></div></div>`;
+  }
+  const qs=new URLSearchParams({...F,size:50});
+  const r=await api('/api/leads?'+qs);
+  const fa=r.facets,sel=(k,l,opts)=>`<select data-k="${k}"><option value="">${l}</option>${opts.map(o=>`<option ${F[k]===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+  const fl=$('#lf');
+  if(!fl.dataset.built){fl.dataset.built=1;
+    fl.innerHTML=`<input id="lq" placeholder="Search name, email, phone, ID" value="${esc(F.q)}">`+sel('status','Status',fa.status)+sel('stage','Stage',fa.stage)+sel('year','Year',fa.year)+sel('source','Source',fa.source)+sel('user','Salesperson',fa.user)+sel('reason','Lost reason',fa.reason)+`<button id="lcsv">Export CSV</button>`;
+    let tm;$('#lq').oninput=e=>{clearTimeout(tm);tm=setTimeout(()=>{F.q=e.target.value;F.page=1;R.leads(el)},300)};
+    fl.querySelectorAll('select').forEach(s=>s.onchange=e=>{F[e.target.dataset.k]=e.target.value;F.page=1;R.leads(el)});
+    $('#lcsv').onclick=()=>{const p=new URLSearchParams(F);p.delete('page');location.href='/api/leads.csv?'+p};
+  }
+  $('#lsum').textContent=`${n0(r.total)} leads match · ${n0(r.summary.converted)} converted · ${n0(r.summary.lost)} lost · ${n0(r.summary.open)} open`;
+  const th=(k,l,c='')=>`<th class="${c}" data-s="${k}" style="cursor:pointer">${l}${F.sort===k?(F.dir==='asc'?' ▲':' ▼'):''}</th>`;
+  $('#ltab').innerHTML=`<tr><th>ID</th>${th('name','Lead')}<th>Contact</th>${th('created','Created')}${th('stage','Stage')}<th>Status</th><th>Salesperson</th><th>Source / Medium / Campaign</th>${th('value','Contract','r')}</tr>`+
+   r.rows.map(l=>`<tr class="click" data-id="${l.id}"><td class="mono">${l.id}</td><td>${esc(l.name)}<div class="sub">${esc(l.partner)}</div></td><td class="sub">${esc(l.email)}<br>${esc(l.phone)}</td><td class="mono">${esc((l.created||'').slice(0,10))}</td><td>${esc(l.stage)}</td><td><span class="pill ${l.status}">${esc(l.status)}</span>${l.lostReason?`<div class="sub">${esc(l.lostReason)}</div>`:''}</td><td>${esc(l.user||'–')}</td><td class="sub">${esc([l.source,l.medium,l.campaign].filter(Boolean).join(' / ')||'–')}</td><td class="r">${l.contractValue&&l.currency?money(l.contractValue,l.currency):''}<div class="sub">${esc(l.contractType||'')}</div></td></tr>`).join('');
+  $('#ltab').querySelectorAll('th[data-s]').forEach(h=>h.onclick=()=>{const k=h.dataset.s;F.dir=F.sort===k&&F.dir==='desc'?'asc':'desc';F.sort=k;R.leads(el)});
+  $('#ltab').querySelectorAll('tr.click').forEach(tr=>tr.onclick=()=>detail(r.rows.find(x=>x.id==tr.dataset.id),r.odoo_url));
+  $('#lpg').innerHTML=`<button ${r.page<=1?'disabled':''} id="pp">Prev</button><span class="mono">${r.page} / ${r.pages}</span><button ${r.page>=r.pages?'disabled':''} id="pn">Next</button>`;
+  $('#pp').onclick=()=>{F.page=r.page-1;R.leads(el)};$('#pn').onclick=()=>{F.page=r.page+1;R.leads(el)};
+};
+function detail(l,odoo){
+  const rows=[['ID',l.id],['Lead',l.name],['Company / name',l.partner],['Email',l.email],['Phone',l.phone],['Country',l.country],['Status',l.status],['Stage',l.stage],['Phase',l.phase],['Probability',l.probability!=null?l.probability+'%':''],['Salesperson',l.user],['Referrer',l.refUser],['Source',l.source],['Medium',l.medium],['Campaign',l.campaign],['Lost reason',l.lostReason],['Contract type',l.contractType],['Contract value',l.contractValue&&l.currency?money(l.contractValue,l.currency):l.contractValue],['Counted in revenue',l.revenueCounted?'Yes':'No'],['Budget',l.seg.budget],['Immigration path',l.seg.immigration],['Destination',l.seg.destination],['Created',l.created],['Last updated',l.updated],['Closed',l.closed],['Notes',l.notes]];
+  $('#dlg').innerHTML=`<dl>${rows.filter(r=>r[1]!==''&&r[1]!=null).map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between"><a href="${esc(odoo)}/web#id=${l.id}&model=crm.lead&view_type=form" target="_blank" rel="noopener">Open in Odoo</a><button onclick="document.getElementById('dlg').close()">Close</button></div>`;
+  $('#dlg').showModal();
+}
+
+// ---- shell ----
+async function show(tab){
+  current=tab;
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===tab));
+  document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id==='t-'+tab));
+  const el=$('#t-'+tab);
+  if(!el.innerHTML)el.innerHTML='<div class="loading">Loading from Odoo… the first sync of ~38k leads can take a minute.</div>';
+  $('#err').style.display='none';
+  try{applyChartTheme();await R[tab](el)}catch(e){el.innerHTML='';$('#err').textContent='Could not load data: '+e.message;$('#err').style.display='block'}
+  location.hash=tab;
+}
+async function status(){
+  try{const s=await api('/api/status');
+    $('#status').textContent=`${n0(s.total_leads)} leads · synced ${Math.round(s.cache_age_seconds/60)} min ago${s.last_error?' · last sync error: '+s.last_error:''}`;
+  }catch(e){$('#status').textContent='Not connected: '+e.message}
+}
+$('#tabs').innerHTML=TABS.map(([k,l])=>`<button data-t="${k}">${l}</button>`).join('');
+$('#tabs').onclick=e=>{if(e.target.dataset.t)show(e.target.dataset.t)};
+$('#refresh').onclick=async()=>{const b=$('#refresh');b.disabled=true;b.textContent='Refreshing…';
+  try{await api('/api/refresh');Object.keys(store).forEach(k=>delete store[k]);document.querySelectorAll('section').forEach(s=>{s.innerHTML='';delete s.dataset.init});await status();await show(current)}
+  catch(e){$('#err').textContent='Refresh failed: '+e.message;$('#err').style.display='block'}
+  b.disabled=false;b.textContent='Refresh from Odoo'};
+function setTheme(t){document.documentElement.dataset.theme=t;try{localStorage.setItem('theme',t)}catch(e){}}
+$('#theme').onclick=()=>{setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');if(current!=='leads')show(current)};
+let saved=null;try{saved=localStorage.getItem('theme')}catch(e){}
+setTheme(saved||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+status();
+show(TABS.some(t=>t[0]===location.hash.slice(1))?location.hash.slice(1):'overview');
+</script>
+</body>
+</html>

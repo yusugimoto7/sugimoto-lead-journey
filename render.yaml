@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: sugimoto-lead-journey
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: ODOO_URL
+        value: https://sugimotovisa.odoo.com
+      - key: ODOO_DB
+        sync: false
+      - key: ODOO_USERNAME
+        sync: false
+      - key: ODOO_API_KEY
+        sync: false
+      - key: DASHBOARD_USER
+        value: sugimoto
+      - key: DASHBOARD_PASSWORD
+        sync: false
