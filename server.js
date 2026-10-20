@@ -29,16 +29,25 @@ app.use(express.static(path.join(__dirname, 'public')));
 const notReady = (res) => (state.promise || !state.error
   ? res.status(503).json({ syncing: true, error: 'Syncing from Odoo, first load can take a few minutes' })
   : res.status(502).json({ error: state.error }));
+// scope=native (default) | historical | all. Applied to every endpoint so every page agrees.
+const scoped = (d, req) => {
+  const scope = ['native', 'historical', 'all'].includes(req.query.scope) ? req.query.scope : 'native';
+  const leads = scope === 'all' ? d.leads : d.leads.filter((l) => l.historical === (scope === 'historical'));
+  return { ...d, leads, all: d.leads, scope };
+};
 const route = (fn) => (req, res) => {
   const d = current();
   if (!d) return notReady(res);
-  try { res.json(fn(d, req)); } catch (e) { res.status(500).json({ error: e.message }); }
+  try { res.json(fn(scoped(d, req), req)); } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
 app.get('/api/status', (_req, res) => {
   const d = current();
   res.json({
     total_leads: d ? d.leads.length : 0,
+    historical_leads: d ? d.leads.filter((l) => l.historical).length : 0,
+    native_leads: d ? d.leads.filter((l) => !l.historical).length : 0,
+    historical_tags: d ? d.historicalTags : null,
     last_sync: d ? new Date(d.fetchedAt).toISOString() : null,
     cache_age_seconds: d ? Math.round((Date.now() - d.fetchedAt) / 1000) : null,
     cache_ttl_seconds: CACHE_MS / 1000,
@@ -57,7 +66,7 @@ app.get('/api/refresh', (_req, res) => {
   startLoad(true); // runs in the background; poll /api/status (syncing / last_sync)
   res.status(202).json({ started: true, syncing: true });
 });
-app.get('/api/summary', route((d) => A.summary(d.leads)));
+app.get('/api/summary', route((d) => A.summary(d.leads, d.all)));
 app.get('/api/sources', route((d) => A.sources(d.leads)));
 app.get('/api/journey', route((d) => A.journey(d.leads)));
 app.get('/api/lost', route((d) => A.lost(d.leads)));
@@ -79,12 +88,12 @@ app.get('/api/leads', route((d, req) => {
 }));
 
 const CSV_COLS = ['id', 'name', 'partner', 'email', 'phone', 'country', 'created', 'closed', 'status', 'stage', 'phase',
-  'user', 'refUser', 'source', 'medium', 'campaign', 'lostReason', 'probability', 'contractType', 'contractValue', 'currency'];
+  'historical', 'user', 'refUser', 'source', 'medium', 'campaign', 'lostReason', 'probability', 'contractType', 'contractValue', 'currency'];
 app.get('/api/leads.csv', (req, res) => {
   const d = current();
   if (!d) return notReady(res);
   try {
-    const rows = A.filterLeads(d.leads, req.query);
+    const rows = A.filterLeads(scoped(d, req).leads, req.query);
     const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const csv = [CSV_COLS.join(','), ...rows.map((r) => CSV_COLS.map((c) => esc(r[c])).join(','))].join('\n');
     res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="leads.csv"' }).send('﻿' + csv);

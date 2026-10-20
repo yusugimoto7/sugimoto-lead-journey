@@ -35,7 +35,15 @@ for (let i = 1; i <= 1350; i++) {
   });
 }
 
+leads.slice(0, 160).forEach((l) => {
+  Object.assign(l, { tag_ids: [1], active: false, create_date: '2025-10-14 09:00:00', write_date: '2025-10-14 09:00:00', date_closed: false, lost_reason_id: i1(l.id) ? [1, 'Price'] : false });
+});
+leads.slice(160).forEach((l) => { l.tag_ids = l.id % 7 === 0 ? [2] : []; });
+function i1(id) { return id % 2 === 0; }
+const TAGS = [{ id: 1, name: 'Historical' }, { id: 2, name: 'VIP' }];
+
 const FIELDS = {
+  tag_ids: { string: 'Tags', type: 'many2many', relation: 'crm.tag' },
   id: { string: 'ID', type: 'integer' }, name: { string: 'Opportunity', type: 'char' },
   create_date: { string: 'Created', type: 'datetime' }, write_date: { string: 'Updated', type: 'datetime' },
   stage_id: { string: 'Stage', type: 'many2one' }, user_id: { string: 'Salesperson', type: 'many2one' },
@@ -60,7 +68,8 @@ app.post('/web/dataset/call_kw', (req, res) => {
   if (!(req.headers.cookie || '').includes('session_id=abc123')) {
     return res.json({ jsonrpc: '2.0', id: 1, error: { code: 100, message: 'Session expired', data: { name: 'odoo.http.SessionExpiredException', message: 'Session expired' } } });
   }
-  const { method, args, kwargs } = req.body.params;
+  const { model, method, args, kwargs } = req.body.params;
+  if (model === 'crm.tag') return res.json({ jsonrpc: '2.0', id: 1, result: TAGS });
   if (method === 'fields_get') return res.json({ jsonrpc: '2.0', id: 1, result: FIELDS });
   if (method === 'search_read') {
     const since = args[0][0][2];
@@ -77,7 +86,8 @@ app.post('/jsonrpc', (req, res) => {
   const ok = (result) => res.json({ jsonrpc: '2.0', id: 1, result });
   if (service === 'common' && method === 'authenticate') return ok(args[0] === 'testdb' && args[1] === 'tester' && args[2] === 'key' ? 7 : false);
   if (service === 'object' && method === 'execute_kw') {
-    const [, , key, , m, a, kw] = args;
+    const [, , key, mdl, m, a, kw] = args;
+    if (mdl === 'crm.tag' && key === 'key') return ok(TAGS);
     if (key !== 'key') return res.json({ jsonrpc: '2.0', id: 1, error: { code: 200, message: 'Odoo Server Error', data: { name: 'odoo.exceptions.AccessDenied', message: 'Access Denied' } } });
     if (m === 'fields_get') return ok(FIELDS);
     if (m === 'search_read') return ok(leads.filter((l) => l.create_date >= a[0][0][2]).slice(kw.offset, kw.offset + kw.limit).map((l) => Object.fromEntries(kw.fields.map((f) => [f, l[f]]))));

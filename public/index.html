@@ -54,6 +54,9 @@ tr.click{cursor:pointer}tr.click:hover td{background:rgba(var(--accent-rgb),.06)
 dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);max-width:640px;width:calc(100% - 32px);padding:20px}
 dialog::backdrop{background:rgba(0,0,0,.5)}
 dl{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:0}dt{color:var(--mute)}dd{margin:0;word-break:break-word}
+.pill.Historical{color:var(--mute);border-style:dashed}
+.scope{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mute)}
+.banner{background:rgba(var(--accent-rgb),.1);border:1px solid rgba(var(--accent-rgb),.35);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:12.5px;display:none}
 .loading{color:var(--mute);padding:40px;text-align:center}
 @media(max-width:600px){main{padding:12px}header,nav{padding-left:12px;padding-right:12px}.chart{height:260px}dl{grid-template-columns:100px 1fr}}
 </style>
@@ -61,11 +64,11 @@ dl{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:0}dt{color:v
 <body>
 <header>
   <div><h1>Sugimoto Visa · Lead Journey</h1><div class="sub" id="status">Connecting to Odoo…</div></div>
-  <div style="display:flex;gap:8px"><button id="refresh">Refresh from Odoo</button><button id="theme" aria-label="Toggle theme">Theme</button></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><label class="scope">Data scope <select id="scope" aria-label="Data scope"><option value="native">Native only</option><option value="historical">Historical only</option><option value="all">All leads</option></select></label><button id="refresh">Refresh from Odoo</button><button id="theme" aria-label="Toggle theme">Theme</button></div>
 </header>
 <nav id="tabs"></nav>
 <main>
-  <div class="warn" id="err"></div>
+  <div class="warn" id="err"></div><div class="banner" id="banner"></div>
   <section id="t-overview"></section><section id="t-sources"></section><section id="t-journey"></section>
   <section id="t-segments"></section><section id="t-lost"></section><section id="t-sales"></section>
   <section id="t-deep"></section><section id="t-leads"></section>
@@ -77,10 +80,10 @@ const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const n0=v=>v==null?'–':Number(v).toLocaleString('en-US',{maximumFractionDigits:0});
 const money=(v,c)=>c==='EUR'?'€'+n0(v):'C$'+n0(v);
-const store={};let charts={};let current='overview';
+const store={};let charts={};let current='overview';let scope='native';try{scope=localStorage.getItem('scope')||'native'}catch(e){}
 
 async function api(p){
-  const r=await fetch(p);const t=await r.text();let j=null;try{j=JSON.parse(t)}catch(e){}
+  const r=await fetch(p+(p.includes('?')?'&':'?')+'scope='+scope);const t=await r.text();let j=null;try{j=JSON.parse(t)}catch(e){}
   if(!r.ok||!j){const e=new Error(j&&j.error||`Server answered ${r.status} ${r.statusText||''}`.trim());e.syncing=!!(j&&j.syncing)||r.status===502&&!j||r.status===504;throw e}
   return j}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -106,9 +109,12 @@ const R={};
 R.overview=async el=>{
   const s=await cached('summary'),t=s.totals;
   const pending=t.open;
-  el.innerHTML=`<div class="grid kpis">${kpi('Total leads',n0(t.total),'since 2022')}${kpi('Lost',n0(t.lost),'inactive + reason')}${kpi('Pending',n0(pending),'open, not converted')}${kpi('Converted',n0(t.converted),'Stage 22')}${kpi('Conversion rate',t.rate+'%','converted / total')}</div>
-  <div class="grid two">${card('Leads per month',canvas('c-month'))}${card('By year',canvas('c-year'))}</div>`;
-  mk('c-month',{type:'line',data:{labels:s.monthly.map(m=>m.month),datasets:[
+  const h=s.historical;
+  el.innerHTML=`<div class="grid kpis">${kpi('Total leads',n0(t.total),scope==='native'?'native leads, since 2022':scope==='all'?'native + historical':'historical only')}${kpi('Lost',n0(t.lost),'inactive + reason')}${kpi('Pending',n0(pending),'open, not converted')}${kpi('Converted',n0(t.converted),'Stage 22')}${kpi('Conversion rate',t.rate+'%','converted / total')}</div>
+  <div class="grid two">${card('Leads per month',canvas('c-month')+'<div class="note">Native leads only: historical leads carry the import date, not a real lead date.</div>')}${card('By year',canvas('c-year'))}</div>
+  ${card('Historical (imported) leads',h.total?`<div class="grid kpis" style="margin:0">${kpi('Imported',n0(h.total),n0(h.native)+' native leads')}${kpi('With contract data',n0(h.withContractData),n0(h.withContractValue)+' with a value')}${kpi('At Stage 22 in Odoo',n0(h.atStage22),'not counted as signed')}${kpi('Have a lost reason',n0(h.withLostReason),'not counted as lost')}</div><div class="note">Imported ${esc((h.importedFrom||'').slice(0,10))} to ${esc((h.importedTo||'').slice(0,10))}. Their original dates, sources and outcomes are unknown, so they are excluded from conversion rates, revenue, lost analysis and time charts. Use the Data scope menu to browse them.</div>`:'<div class="note">No leads carry the historical tag. Check /api/status → historical_tags.</div>')}`;
+  if(!s.monthly.length)document.getElementById('c-month').parentElement.innerHTML='<div class="note">No dated native leads in this scope.</div>';
+  else mk('c-month',{type:'line',data:{labels:s.monthly.map(m=>m.month),datasets:[
     {label:'Leads',data:s.monthly.map(m=>m.total),borderColor:col(0),backgroundColor:col(0),pointRadius:0,tension:.25},
     {label:'Converted',data:s.monthly.map(m=>m.converted),borderColor:col(2),backgroundColor:col(2),pointRadius:0,tension:.25}]},options:{interaction:{mode:'index',intersect:false}}});
   mk('c-year',{type:'bar',data:{labels:s.byYear.map(y=>y.year),datasets:[
@@ -192,7 +198,7 @@ R.leads=async el=>{
     fl.innerHTML=`<input id="lq" placeholder="Search name, email, phone, ID" value="${esc(F.q)}">`+sel('status','Status',fa.status)+sel('stage','Stage',fa.stage)+sel('year','Year',fa.year)+sel('source','Source',fa.source)+sel('user','Salesperson',fa.user)+sel('reason','Lost reason',fa.reason)+`<button id="lcsv">Export CSV</button>`;
     let tm;$('#lq').oninput=e=>{clearTimeout(tm);tm=setTimeout(()=>{F.q=e.target.value;F.page=1;R.leads(el)},300)};
     fl.querySelectorAll('select').forEach(s=>s.onchange=e=>{F[e.target.dataset.k]=e.target.value;F.page=1;R.leads(el)});
-    $('#lcsv').onclick=()=>{const p=new URLSearchParams(F);p.delete('page');location.href='/api/leads.csv?'+p};
+    $('#lcsv').onclick=()=>{const p=new URLSearchParams(F);p.delete('page');p.set('scope',scope);location.href='/api/leads.csv?'+p};
   }
   $('#lsum').textContent=`${n0(r.total)} leads match · ${n0(r.summary.converted)} converted · ${n0(r.summary.lost)} lost · ${n0(r.summary.open)} open`;
   const th=(k,l,c='')=>`<th class="${c}" data-s="${k}" style="cursor:pointer">${l}${F.sort===k?(F.dir==='asc'?' ▲':' ▼'):''}</th>`;
@@ -228,7 +234,7 @@ async function show(tab){
 }
 async function status(){
   try{const s=await api('/api/status');
-    $('#status').textContent=(s.last_sync?`${n0(s.total_leads)} leads · synced ${Math.round(s.cache_age_seconds/60)} min ago`:'No data yet')+(s.syncing?' · syncing…':'')+(s.last_error?' · last sync error: '+s.last_error:'');
+    $('#status').textContent=(s.last_sync?`${n0(s.native_leads)} native + ${n0(s.historical_leads)} historical leads · synced ${Math.round(s.cache_age_seconds/60)} min ago`:'No data yet')+(s.syncing?' · syncing…':'')+(s.last_error?' · last sync error: '+s.last_error:'');
     return s;
   }catch(e){$('#status').textContent='Not connected: '+e.message}
 }
@@ -244,6 +250,12 @@ $('#refresh').onclick=async()=>{const b=$('#refresh');b.disabled=true;b.textCont
     await show(current)}
   catch(e){$('#err').textContent='Refresh failed: '+e.message;$('#err').style.display='block'}
   b.disabled=false;b.textContent='Refresh from Odoo'};
+function banner(){const b=$('#banner');
+  b.style.display=scope==='native'?'none':'block';
+  b.textContent=scope==='historical'?'Historical only: imported records with unknown dates and outcomes. Rates, revenue and lost analysis are intentionally empty for them.':'All leads: historical imports are included in totals but never counted as lost, signed or revenue, and are left out of time charts.'}
+$('#scope').value=scope;banner();
+$('#scope').onchange=e=>{scope=e.target.value;try{localStorage.setItem('scope',scope)}catch(x){}banner();
+  Object.keys(store).forEach(k=>delete store[k]);document.querySelectorAll('section').forEach(s=>{s.innerHTML='';delete s.dataset.init});F.page=1;show(current)};
 function setTheme(t){document.documentElement.dataset.theme=t;try{localStorage.setItem('theme',t)}catch(e){}}
 $('#theme').onclick=()=>{setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');if(current!=='leads')show(current)};
 let saved=null;try{saved=localStorage.getItem('theme')}catch(e){}
