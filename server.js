@@ -60,6 +60,7 @@ app.get('/api/status', (_req, res) => {
     odoo_url: baseUrl(),
     fields: d ? {
       contract_type: d.det.contractType, contract_value: d.det.contractValue,
+      historical_date: d.det.histDate, historical_date_candidates: d.det.histDateCandidates,
       segments: Object.fromEntries(Object.entries(d.det.segments).map(([k, v]) => [k, v.name])),
       fetched: d.fields, skipped: d.missing,
     } : null,

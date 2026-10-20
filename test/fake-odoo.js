@@ -36,7 +36,7 @@ for (let i = 1; i <= 1350; i++) {
 }
 
 leads.slice(0, 160).forEach((l) => {
-  Object.assign(l, { tag_ids: [], description: `<p>Imported from sheet</p><p>Source: ${['Instagram', 'Referral', 'Google'][l.id % 3]}</p>`, source_id: false, active: false, create_date: '2025-10-14 09:00:00', write_date: '2025-10-14 09:00:00', date_closed: false, lost_reason_id: [9, 'Historical'] });
+  Object.assign(l, { x_created_at: l.id % 10 === 0 ? false : `202${2 + (l.id % 3)}-0${1 + (l.id % 9)}-15 00:00:00`, tag_ids: [], description: `<p>Imported from sheet</p><p>Source: ${['Instagram', 'Referral', 'Google'][l.id % 3]}</p>`, source_id: false, active: false, create_date: '2025-10-14 09:00:00', write_date: '2025-10-14 09:00:00', date_closed: false, lost_reason_id: [9, 'Historical'] });
 });
 leads.slice(160).forEach((l) => { l.tag_ids = l.id % 7 === 0 ? [2] : []; });
 function i1(id) { return id % 2 === 0; }
@@ -44,6 +44,7 @@ const TAGS = [{ id: 1, name: 'Historical' }, { id: 2, name: 'VIP' }];
 
 const FIELDS = {
   tag_ids: { string: 'Tags', type: 'many2many', relation: 'crm.tag' },
+  x_created_at: { string: 'Created at', type: 'datetime' },
   id: { string: 'ID', type: 'integer' }, name: { string: 'Opportunity', type: 'char' },
   create_date: { string: 'Created', type: 'datetime' }, write_date: { string: 'Updated', type: 'datetime' },
   stage_id: { string: 'Stage', type: 'many2one' }, user_id: { string: 'Salesperson', type: 'many2one' },
