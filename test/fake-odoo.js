@@ -53,7 +53,7 @@ const FIELDS = {
 
 app.post('/web/session/authenticate', (req, res) => {
   const { db, login, password } = req.body.params;
-  if (db !== 'testdb' || login !== 'tester' || password !== 'key') return res.json({ jsonrpc: '2.0', id: 1, result: { uid: false } });
+  if (process.env.FAKE_REFUSE_SESSION || db !== 'testdb' || login !== 'tester' || password !== 'key') return res.json({ jsonrpc: '2.0', id: 1, result: { uid: false } });
   res.set('Set-Cookie', 'session_id=abc123; Path=/; HttpOnly').json({ jsonrpc: '2.0', id: 1, result: { uid: 7 } });
 });
 app.post('/web/dataset/call_kw', (req, res) => {
@@ -69,6 +69,18 @@ app.post('/web/dataset/call_kw', (req, res) => {
       .map((l) => Object.fromEntries(kwargs.fields.map((f) => [f, l[f]])));
     console.log(`[fake-odoo] search_read offset=${kwargs.offset} -> ${rows.length}`);
     return res.json({ jsonrpc: '2.0', id: 1, result: rows });
+  }
+  res.json({ jsonrpc: '2.0', id: 1, error: { code: 200, message: 'unsupported', data: { message: 'unsupported' } } });
+});
+app.post('/jsonrpc', (req, res) => {
+  const { service, method, args } = req.body.params;
+  const ok = (result) => res.json({ jsonrpc: '2.0', id: 1, result });
+  if (service === 'common' && method === 'authenticate') return ok(args[0] === 'testdb' && args[1] === 'tester' && args[2] === 'key' ? 7 : false);
+  if (service === 'object' && method === 'execute_kw') {
+    const [, , key, , m, a, kw] = args;
+    if (key !== 'key') return res.json({ jsonrpc: '2.0', id: 1, error: { code: 200, message: 'Odoo Server Error', data: { name: 'odoo.exceptions.AccessDenied', message: 'Access Denied' } } });
+    if (m === 'fields_get') return ok(FIELDS);
+    if (m === 'search_read') return ok(leads.filter((l) => l.create_date >= a[0][0][2]).slice(kw.offset, kw.offset + kw.limit).map((l) => Object.fromEntries(kw.fields.map((f) => [f, l[f]]))));
   }
   res.json({ jsonrpc: '2.0', id: 1, error: { code: 200, message: 'unsupported', data: { message: 'unsupported' } } });
 });
