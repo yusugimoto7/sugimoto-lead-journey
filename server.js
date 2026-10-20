@@ -59,6 +59,7 @@ app.get('/api/journey', route((d) => A.journey(d.leads)));
 app.get('/api/lost', route((d) => A.lost(d.leads)));
 app.get('/api/sales', route((d) => A.sales(d.leads, d.det)));
 app.get('/api/deep', route((d) => A.deep(d.leads)));
+app.get('/api/diagnostics', route((d) => A.diagnostics(d.leads, d.det)));
 app.get('/api/segments', route((d) => A.segments(d.leads, d.det)));
 
 // Full lead explorer: server-side filter / sort / paging
