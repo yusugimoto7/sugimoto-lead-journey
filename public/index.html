@@ -79,7 +79,11 @@ const n0=v=>v==null?'–':Number(v).toLocaleString('en-US',{maximumFractionDigit
 const money=(v,c)=>c==='EUR'?'€'+n0(v):'C$'+n0(v);
 const store={};let charts={};let current='overview';
 
-async function api(p){const r=await fetch(p);const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j}
+async function api(p){
+  const r=await fetch(p);const t=await r.text();let j=null;try{j=JSON.parse(t)}catch(e){}
+  if(!r.ok||!j){const e=new Error(j&&j.error||`Server answered ${r.status} ${r.statusText||''}`.trim());e.syncing=!!(j&&j.syncing)||r.status===502&&!j||r.status===504;throw e}
+  return j}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function cached(k){return store[k]||(store[k]=await api('/api/'+k))}
 function col(i){return getComputedStyle(document.documentElement).getPropertyValue('--c'+((i%5)+1)).trim()}
 function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
@@ -213,18 +217,31 @@ async function show(tab){
   const el=$('#t-'+tab);
   if(!el.innerHTML)el.innerHTML='<div class="loading">Loading from Odoo… the first sync of ~38k leads can take a minute.</div>';
   $('#err').style.display='none';
-  try{applyChartTheme();await R[tab](el)}catch(e){el.innerHTML='';$('#err').textContent='Could not load data: '+e.message;$('#err').style.display='block'}
   location.hash=tab;
+  for(let i=0;;i++){
+    try{applyChartTheme();await R[tab](el);status();return}
+    catch(e){
+      if(current!==tab)return;
+      if(e.syncing&&i<120){el.innerHTML='<div class="loading">Syncing leads from Odoo… the first load can take a few minutes. This page retries automatically.</div>';await sleep(4000);continue}
+      el.innerHTML='';$('#err').textContent='Could not load data: '+e.message;$('#err').style.display='block';return}
+  }
 }
 async function status(){
   try{const s=await api('/api/status');
-    $('#status').textContent=`${n0(s.total_leads)} leads · synced ${Math.round(s.cache_age_seconds/60)} min ago${s.last_error?' · last sync error: '+s.last_error:''}`;
+    $('#status').textContent=(s.last_sync?`${n0(s.total_leads)} leads · synced ${Math.round(s.cache_age_seconds/60)} min ago`:'No data yet')+(s.syncing?' · syncing…':'')+(s.last_error?' · last sync error: '+s.last_error:'');
+    return s;
   }catch(e){$('#status').textContent='Not connected: '+e.message}
 }
 $('#tabs').innerHTML=TABS.map(([k,l])=>`<button data-t="${k}">${l}</button>`).join('');
 $('#tabs').onclick=e=>{if(e.target.dataset.t)show(e.target.dataset.t)};
 $('#refresh').onclick=async()=>{const b=$('#refresh');b.disabled=true;b.textContent='Refreshing…';
-  try{await api('/api/refresh');Object.keys(store).forEach(k=>delete store[k]);document.querySelectorAll('section').forEach(s=>{s.innerHTML='';delete s.dataset.init});await status();await show(current)}
+  try{
+    const before=(await api('/api/status')).last_sync;
+    await api('/api/refresh');
+    for(let i=0;i<200;i++){await sleep(3000);const s=await status();
+      if(s&&!s.syncing){if(s.last_error&&s.last_sync===before)throw new Error(s.last_error);break}}
+    Object.keys(store).forEach(k=>delete store[k]);document.querySelectorAll('section').forEach(s=>{s.innerHTML='';delete s.dataset.init});
+    await show(current)}
   catch(e){$('#err').textContent='Refresh failed: '+e.message;$('#err').style.display='block'}
   b.disabled=false;b.textContent='Refresh from Odoo'};
 function setTheme(t){document.documentElement.dataset.theme=t;try{localStorage.setItem('theme',t)}catch(e){}}

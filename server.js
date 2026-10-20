@@ -1,7 +1,7 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
-const { getData, state, CACHE_MS } = require('./lib/data');
+const { current, startLoad, state, CACHE_MS } = require('./lib/data');
 const A = require('./lib/analytics');
 const { baseUrl } = require('./lib/odoo');
 
@@ -24,34 +24,38 @@ if (process.env.DASHBOARD_PASSWORD) {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-const route = (fn) => async (req, res) => {
-  try {
-    res.json(await fn(await getData(), req));
-  } catch (e) {
-    res.status(502).json({ error: e.message });
-  }
+// Answers from cache. With no data yet, replies 503 {syncing:true} (or 502 with the Odoo error) so the
+// browser can poll instead of holding a request open past Render's proxy timeout.
+const notReady = (res) => (state.promise || !state.error
+  ? res.status(503).json({ syncing: true, error: 'Syncing from Odoo, first load can take a few minutes' })
+  : res.status(502).json({ error: state.error }));
+const route = (fn) => (req, res) => {
+  const d = current();
+  if (!d) return notReady(res);
+  try { res.json(fn(d, req)); } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
-app.get('/api/status', route((d) => ({
-  total_leads: d.leads.length,
-  last_sync: new Date(d.fetchedAt).toISOString(),
-  cache_age_seconds: Math.round((Date.now() - d.fetchedAt) / 1000),
-  cache_ttl_seconds: CACHE_MS / 1000,
-  syncing: !!state.promise,
-  last_error: state.error,
-  odoo_url: baseUrl(),
-  fields: {
-    contract_type: d.det.contractType, contract_value: d.det.contractValue,
-    segments: Object.fromEntries(Object.entries(d.det.segments).map(([k, v]) => [k, v.name])),
-    fetched: d.fields, skipped: d.missing,
-  },
-})));
+app.get('/api/status', (_req, res) => {
+  const d = current();
+  res.json({
+    total_leads: d ? d.leads.length : 0,
+    last_sync: d ? new Date(d.fetchedAt).toISOString() : null,
+    cache_age_seconds: d ? Math.round((Date.now() - d.fetchedAt) / 1000) : null,
+    cache_ttl_seconds: CACHE_MS / 1000,
+    syncing: !!state.promise,
+    last_error: state.error,
+    odoo_url: baseUrl(),
+    fields: d ? {
+      contract_type: d.det.contractType, contract_value: d.det.contractValue,
+      segments: Object.fromEntries(Object.entries(d.det.segments).map(([k, v]) => [k, v.name])),
+      fetched: d.fields, skipped: d.missing,
+    } : null,
+  });
+});
 app.get('/api/fields', route((d) => ({ contract_related: d.det.contract, detected: { contractType: d.det.contractType, contractValue: d.det.contractValue, segments: d.det.segments } })));
-app.get('/api/refresh', async (_req, res) => {
-  try {
-    const d = await getData(true);
-    res.json({ refreshed: true, total_leads: d.leads.length, last_sync: new Date(d.fetchedAt).toISOString() });
-  } catch (e) { res.status(502).json({ error: e.message }); }
+app.get('/api/refresh', (_req, res) => {
+  startLoad(true); // runs in the background; poll /api/status (syncing / last_sync)
+  res.status(202).json({ started: true, syncing: true });
 });
 app.get('/api/summary', route((d) => A.summary(d.leads)));
 app.get('/api/sources', route((d) => A.sources(d.leads)));
@@ -76,9 +80,10 @@ app.get('/api/leads', route((d, req) => {
 
 const CSV_COLS = ['id', 'name', 'partner', 'email', 'phone', 'country', 'created', 'closed', 'status', 'stage', 'phase',
   'user', 'refUser', 'source', 'medium', 'campaign', 'lostReason', 'probability', 'contractType', 'contractValue', 'currency'];
-app.get('/api/leads.csv', async (req, res) => {
+app.get('/api/leads.csv', (req, res) => {
+  const d = current();
+  if (!d) return notReady(res);
   try {
-    const d = await getData();
     const rows = A.filterLeads(d.leads, req.query);
     const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const csv = [CSV_COLS.join(','), ...rows.map((r) => CSV_COLS.map((c) => esc(r[c])).join(','))].join('\n');
@@ -88,5 +93,5 @@ app.get('/api/leads.csv', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Dashboard on http://localhost:${PORT}`);
-  getData().catch(() => {}); // warm the cache on boot
+  startLoad(); // warm the cache on boot
 });
