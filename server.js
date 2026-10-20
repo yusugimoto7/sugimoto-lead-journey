@@ -48,6 +48,8 @@ app.get('/api/status', (_req, res) => {
     historical_leads: d ? d.leads.filter((l) => l.historical).length : 0,
     native_leads: d ? d.leads.filter((l) => !l.historical).length : 0,
     historical_tags: d ? d.historicalTags : null,
+    crm_tags: d ? Object.entries(d.leads.reduce((m, l) => { l.tags.forEach((t) => { m[t] = (m[t] || 0) + 1; }); return m; }, {}))
+      .map(([name, leads]) => ({ name, leads })).sort((a, b) => b.leads - a.leads) : null,
     last_sync: d ? new Date(d.fetchedAt).toISOString() : null,
     cache_age_seconds: d ? Math.round((Date.now() - d.fetchedAt) / 1000) : null,
     cache_ttl_seconds: CACHE_MS / 1000,
