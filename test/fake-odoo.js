@@ -36,7 +36,7 @@ for (let i = 1; i <= 1350; i++) {
 }
 
 leads.slice(0, 160).forEach((l) => {
-  Object.assign(l, { tag_ids: [1], active: false, create_date: '2025-10-14 09:00:00', write_date: '2025-10-14 09:00:00', date_closed: false, lost_reason_id: i1(l.id) ? [1, 'Price'] : false });
+  Object.assign(l, { tag_ids: [], description: `<p>Imported from sheet</p><p>Source: ${['Instagram', 'Referral', 'Google'][l.id % 3]}</p>`, source_id: false, active: false, create_date: '2025-10-14 09:00:00', write_date: '2025-10-14 09:00:00', date_closed: false, lost_reason_id: [9, 'Historical'] });
 });
 leads.slice(160).forEach((l) => { l.tag_ids = l.id % 7 === 0 ? [2] : []; });
 function i1(id) { return id % 2 === 0; }
