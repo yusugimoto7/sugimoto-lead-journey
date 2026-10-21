@@ -47,6 +47,20 @@ Working notes so a new session can pick up where the last one stopped.
   322 of them are archived with a stage name that has no number. Not counted as converted today.
 - CA-SUV fees are 100,000-130,000 (SG 7,000 + SB 93,000-123,000). If CAD, they dominate revenue: check with owner.
 
+## Contract sheets vs Odoo (measured 2026-10-21, sheets read once via the Sheets connector, not committed)
+- Owner decision: read contracts from the Google Sheets; for the pre-native period count contracts fully from the sheet.
+- SparkBridge "Customer Info": 727 non-empty rows (Signed And Paid 175). Finance "ALL Numbers": 942 (Signed And Paid 348).
+  Deduped by email: 466 converted contracts; 262 signed before 2024-11, 185 from 2024-11, 19 no date.
+  154 of 466 dates are ambiguous MM/DD vs DD/MM as text; the live reader must use serial values.
+- Of the 262 pre-Nov-2024 contracts: 253 already have a NATIVE Odoo card created after signing, 3 only a historical
+  card, 6 no card. So historical cards are almost never the contract holder.
+- Odoo stage "Won" (no number): 321 cards created 2026-09-25, all `x_contract_status` = Signed and paid,
+  `x_fee_source` = Google Sheet, archived. These are old clients imported as native cards; they inflate Sep 2026
+  native volume (1,492 leads that month). 249 signed before 2024-11, 63 after, 9 no date.
+- Stage 22 (257) vs sheet status: 41 Draft sent + 20 Contract sent (not signed), 2 signed pre-Nov-2024.
+  Signed contracts from 2024-11 outside Stage 22: 63 Won + 27 other stages.
+- Sheet data quality: fee columns hold #N/A, Status holds a person's name once, Total Cost < Professional Fees in samples.
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).
