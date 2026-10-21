@@ -62,7 +62,14 @@ Working notes so a new session can pick up where the last one stopped.
    insta_direct / insta_bio / insta_story -> Instagram + medium Direct / Bio / Story; google -> "Google Ads";
    Site / site / website / sugimotovisa-site -> "Site" (separate from Google); Instagram_ca and Instagram_eu stay
    separate pages; other case-only variants take the most common spelling. Raw value kept as `rawSource`.
-   Still open: `directam` (58) as a source, Instagram_ad vs Instagram, telegram_ad vs Telegram.
+   directam is a medium only: source "directam" -> Instagram + medium `<medium>_directam`.
+   Telegram and telegram_ad stay separate. Instagram_ad stays its own source.
+   Influencer page / partner code comes from Odoo `referred` ("Referred By"), shown as "Referred by"
+   (chart on Sources, filter on Leads). Campaign falls back to `x_studio_campaign_name_1` when campaign_id is empty.
+   Open: spelling variants in `referred` (mahdis.sultani / mahdis-soltani, parsaism / parsaismm, e200aq case);
+   `referred` also holds page titles (website, budget-overview, Sugimoto page names), not only people.
+- Finding: Instagram_ad = 1,778 leads (2025), 1,188 from mahdis.sultani/-soltani; 0 Stage 22, 0 contract status,
+  ~95% lost or archived, 938 never left Pre-Consultation.
 6. March 2026 has ~50 native leads vs 600-1,800 in other months: worth checking with the team.
 
 ## Last numbers seen (production, before Created-at change)
