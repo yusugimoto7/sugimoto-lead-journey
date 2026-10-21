@@ -16,6 +16,8 @@ Working notes so a new session can pick up where the last one stopped.
   `Referral code: X` (insta_direct, agent codes like E104AB); parsed as fallback source (759 after dropping "no" answers).
   18,278 historical cards (67%) have no source anywhere.
 - Some 2024 leads are not imported yet; when imported they must carry the same marker and "Created at".
+- Source rule (owner, 2026-10-21): every historical lead with Created at <= 2023-03-31 counts as source "Instagram",
+  overriding source_id / referral code (8,321 leads, all historical). `INSTAGRAM_ONLY_UNTIL` in lib/data.js.
 - Currency: Europe contracts (study, startup) = EUR, Canada = CAD. No Toman.
 - Converted = stage number 22 only (native). Stages 13 and 18 never count as revenue.
 
@@ -55,6 +57,8 @@ Working notes so a new session can pick up where the last one stopped.
 4. Sheet dates mix MM/DD and DD/MM; read cell serials, flag ambiguous text dates rather than guessing.
 5. Budget and destination also exist as tags (Less than 2 b ... More than 6 b; Canada / Europe):
    decide tags vs `x_budget` / `x_destination` for the Segments tab.
+6b. Source names are fragmented (Instagram / instagram / Insta_direct / insta_direct / Instagram_ca, google / Google,
+   site / Site / website): needs an owner-approved mapping before source charts are trusted.
 6. March 2026 has ~50 native leads vs 600-1,800 in other months: worth checking with the team.
 
 ## Last numbers seen (production, before Created-at change)
