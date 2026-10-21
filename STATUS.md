@@ -12,7 +12,9 @@ Working notes so a new session can pick up where the last one stopped.
 - Native CRM data starts Nov 2024. Earlier leads exist only as imported "historical" cards.
 - Historical cards: lost (active=false) with lost reason "Historical", tag "Historical import" (id 37).
   `create_date` = import day (Oct 2026). Their real date is in the custom "Created at" field.
-  Their original source is written in the description (parsed from a `Source: X` line, format not yet seen).
+  Their original source: Odoo `source_id` on 8,996 cards; the description has no `Source:` line. 787 more carry
+  `Referral code: X` (insta_direct, agent codes like E104AB); parsed as fallback source (759 after dropping "no" answers).
+  18,278 historical cards (67%) have no source anywhere.
 - Some 2024 leads are not imported yet; when imported they must carry the same marker and "Created at".
 - Currency: Europe contracts (study, startup) = EUR, Canada = CAD. No Toman.
 - Converted = stage number 22 only (native). Stages 13 and 18 never count as revenue.
@@ -27,12 +29,27 @@ Working notes so a new session can pick up where the last one stopped.
   Sheets: SparkBridge `1aBodA_kUBrsq-ul7prpSssuqLSZa5uFK2umaKpx83Js` tab "Customer Info";
   Finance `1ZldCpkRcHuYLxNajAGyZ5yCCO1BXyUWx26SvL2Ieh-w` tab "ALL Numbers". Match key: email.
 
+## Measured on production (2026-10-20)
+- Historical: 27,274 cards, all have `x_original_created_at` ("Original created at"): 2022 = 7,056, 2023 = 5,383,
+  2024 = 14,835. Latest historical month is 2024-08; native starts 2024-11, so Sep-Oct 2024 is a gap.
+- Historical cards have NO contract data in Odoo: `x_contract_status`, `x_fee_*`, `x_contract_*_on`,
+  contract numbers are 0 / 27,274. The backfill wrote only to native leads (`x_fee_source` = Google Sheet on 1,785).
+  So open question 1 is answered: historical outcomes need the Google Sheets reader (or a backfill run on historical cards).
+- Native Stage 22 (257): `x_studio_contract_type_1` filled 247, `x_studio_contract_type` (char) 0;
+  `x_studio_contract_pricing` 0 non-zero; `x_studio_contract_value` 216 non-zero; `x_fee_total` 243 non-zero;
+  `x_fee_currency` 253 (CAD 229, EUR 24). Value vs fee_total: equal on 137, differ on 72, only value 7, only fee 34.
+  Typed-in values like 130 / 150 next to fee_total 130,000 show `x_studio_contract_value` has entry errors.
+- Currency from type prefix (CA-/EU-) agrees with `x_fee_currency` on 238 of 241; 3 disagree.
+- 383 native leads have contract status Signed / Signed and paid / partially paid / Paid but are NOT Stage 22;
+  322 of them are archived with a stage name that has no number. Not counted as converted today.
+- CA-SUV fees are 100,000-130,000 (SG 7,000 + SB 93,000-123,000). If CAD, they dominate revenue: check with owner.
+
 ## Open questions (in order)
-1. `/api/diagnostics` on real data: are `x_contract_status`, `x_fee_*`, `x_contract_*_on` already filled
-   on historical cards? `odoo-migration/sheet_backfill.py` writes exactly these from the same sheets.
-   If filled, read them from Odoo instead of building the Google reader.
-2. Which contract type / value field is real: `x_studio_contract_type` vs `_type_1`,
-   `x_studio_contract_value` vs `x_studio_contract_pricing`. Revenue figures are not trustworthy until settled.
+1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
+   `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).
+2. Type: `x_studio_contract_type_1` (settled). Value: `x_studio_contract_value` vs `x_fee_total` (+ `x_fee_currency`)
+   still the owner's call; recommendation is `x_fee_total` + `x_fee_currency`. Revenue logic unchanged until decided.
+2b. Should the 383 signed/paid leads outside Stage 22 count as converted?
 3. SparkBridge fee columns hold 50,000-90,000 per SUV-Canada contract; owner says Canada = CAD. Sanity-check
    against totals before showing historical revenue.
 4. Sheet dates mix MM/DD and DD/MM; read cell serials, flag ambiguous text dates rather than guessing.
