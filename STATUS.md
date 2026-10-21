@@ -66,8 +66,8 @@ Working notes so a new session can pick up where the last one stopped.
    Telegram and telegram_ad stay separate. Instagram_ad stays its own source.
    Influencer page / partner code comes from Odoo `referred` ("Referred By"), shown as "Referred by"
    (chart on Sources, filter on Leads). Campaign falls back to `x_studio_campaign_name_1` when campaign_id is empty.
-   Open: spelling variants in `referred` (mahdis.sultani / mahdis-soltani, parsaism / parsaismm, e200aq case);
-   `referred` also holds page titles (website, budget-overview, Sugimoto page names), not only people.
+   `REF_ALIASES` merges owner-confirmed typos (mahdis-soltani -> mahdis.sultani, parsaismm -> parsaism); values are
+   lowercased. Page titles in `referred` (website, budget-overview, Sugimoto page names) stay as they are (owner).
 - Finding: Instagram_ad = 1,778 leads (2025), 1,188 from mahdis.sultani/-soltani; 0 Stage 22, 0 contract status,
   ~95% lost or archived, 938 never left Pre-Consultation.
 6. March 2026 has ~50 native leads vs 600-1,800 in other months: worth checking with the team.
