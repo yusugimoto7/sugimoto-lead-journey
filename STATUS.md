@@ -58,8 +58,11 @@ Working notes so a new session can pick up where the last one stopped.
 4. Sheet dates mix MM/DD and DD/MM; read cell serials, flag ambiguous text dates rather than guessing.
 5. Budget and destination also exist as tags (Less than 2 b ... More than 6 b; Canada / Europe):
    decide tags vs `x_budget` / `x_destination` for the Segments tab.
-6b. Source names are fragmented (Instagram / instagram / Insta_direct / insta_direct / Instagram_ca, google / Google,
-   site / Site / website): needs an owner-approved mapping before source charts are trusted.
+6b. Source mapping (owner, 2026-10-21, `SOURCE_RULES` in lib/data.js): all Meisam spellings -> "Meisam";
+   insta_direct / insta_bio / insta_story -> Instagram + medium Direct / Bio / Story; google -> "Google Ads";
+   Site / site / website / sugimotovisa-site -> "Site" (separate from Google); Instagram_ca and Instagram_eu stay
+   separate pages; other case-only variants take the most common spelling. Raw value kept as `rawSource`.
+   Still open: `directam` (58) as a source, Instagram_ad vs Instagram, telegram_ad vs Telegram.
 6. March 2026 has ~50 native leads vs 600-1,800 in other months: worth checking with the team.
 
 ## Last numbers seen (production, before Created-at change)
