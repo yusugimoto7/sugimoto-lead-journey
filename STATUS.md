@@ -61,6 +61,19 @@ Working notes so a new session can pick up where the last one stopped.
   Signed contracts from 2024-11 outside Stage 22: 63 Won + 27 other stages.
 - Sheet data quality: fee columns hold #N/A, Status holds a person's name once, Total Cost < Professional Fees in samples.
 
+## Contract confirmation (built 2026-10-21)
+- Contracts tab + `/api/contracts` + lead detail "Contract sheet" + Leads filter, from a snapshot file (see README).
+  Repo is PUBLIC: the snapshot is never committed; it goes to Render as Secret File `contracts.json`.
+  Snapshot refresh = re-read both sheets (grid data) and rerun `tools/contract-snapshot.js`.
+- Dates from cell serials: only 12 of 1,667 rows have a flagged date (was 154 when parsing text).
+- Results: 458 signed clients (deduped by email across sheets), 4 terminated.
+  From Nov 2024: 219 signed; 144 in Stage 22; 62 have a card outside Stage 22 (39 in "Won"); 13 no Odoo card.
+  Before Nov 2024: 239 signed; 227 on a native card created later, 3 historical card only, 9 no card.
+  Stage 22 (257 cards): 193 confirmed signed; sheets say Draft Sent 27, Contract Sent 14, Termination 4, blank 2; 17 not in sheets.
+  26 clients have more than one Stage 22 card (35 extra cards), which inflates Stage 22 counts.
+- Caveat: clients are grouped by shared email, so an agent/agency email used for several clients merges them.
+- Converted definition NOT changed yet: still Stage 22. Owner to decide whether sheet-signed replaces it.
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).
