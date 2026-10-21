@@ -16,8 +16,9 @@ Working notes so a new session can pick up where the last one stopped.
   `Referral code: X` (insta_direct, agent codes like E104AB); parsed as fallback source (759 after dropping "no" answers).
   18,278 historical cards (67%) have no source anywhere.
 - Some 2024 leads are not imported yet; when imported they must carry the same marker and "Created at".
-- Source rule (owner, 2026-10-21): every historical lead with Created at <= 2023-03-31 counts as source "Instagram",
-  overriding source_id / referral code (8,321 leads, all historical). `INSTAGRAM_ONLY_UNTIL` in lib/data.js.
+- Source rule (owner, 2026-10-21): historical leads with Created at <= 2023-03-31 count as "Instagram" (8,072),
+  EXCEPT those with a business-partner referral code (Meisamca, E200AB, ...), which keep it as source (249, 114 codes).
+  Insta-like codes count as Instagram. `INSTAGRAM_ONLY_UNTIL` / `partnerCode` in lib/data.js.
 - Currency: Europe contracts (study, startup) = EUR, Canada = CAD. No Toman.
 - Converted = stage number 22 only (native). Stages 13 and 18 never count as revenue.
 
