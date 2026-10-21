@@ -72,7 +72,19 @@ Working notes so a new session can pick up where the last one stopped.
   Stage 22 (257 cards): 193 confirmed signed; sheets say Draft Sent 27, Contract Sent 14, Termination 4, blank 2; 17 not in sheets.
   26 clients have more than one Stage 22 card (35 extra cards), which inflates Stage 22 counts.
 - Caveat: clients are grouped by shared email, so an agent/agency email used for several clients merges them.
-- Converted definition NOT changed yet: still Stage 22. Owner to decide whether sheet-signed replaces it.
+- Owner rules (2026-10-21): Stage 22 and "Won" = signed and paid; Odoo cards exist only from Nov 2024; every signed
+  client not in Odoo counts as converted. Implemented in `applyOutcomes` (lib/contracts.js), see README.
+- Delivery: the repo is public, so the snapshot ships encrypted as data/contracts.enc; Render needs
+  CONTRACTS_PRIVATE_KEY once (owner holds it; not stored anywhere in the repo or this environment after handover).
+  To refresh later: read both sheets' grid data, rerun tools/contract-snapshot.js, commit data/contracts.enc.
+- Result (live, 2026-10-21): native 338 converted / 18,009 = 1.9% (2024: 32, 2025: 162, 2026: 139, no date: 5);
+  historical 252 converted / 27,432 (2022: 8, 2023: 83, 2024: 161). 253 pre-CRM cards moved to the historical
+  period, 104 of them duplicates of the client's original lead card; 22 signed clients with no Odoo card added.
+- Caveat: sheets start 2023-01-03, so 2022 conversions (8) are almost certainly understated.
+- Open: signed per sheet but card at another stage (e.g. 18) is NOT counted (owner only named not-in-Odoo).
+  Stage 22 / Won cards the sheet calls Draft/Contract Sent are counted (owner: Stage 22 = signed).
+  26 clients have more than one Stage 22 card (35 extra), still counted per card.
+  Revenue logic unchanged; pre-CRM cards are excluded from revenue.
 
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run

@@ -32,7 +32,9 @@ const notReady = (res) => (state.promise || !state.error
 // scope=native (default) | historical | all. Applied to every endpoint so every page agrees.
 const scoped = (d, req) => {
   const scope = ['native', 'historical', 'all'].includes(req.query.scope) ? req.query.scope : 'native';
-  const leads = scope === 'all' ? d.leads : d.leads.filter((l) => l.historical === (scope === 'historical'));
+  // Duplicate import cards (a pre-CRM client's second card) stay out of every count; the Contracts tab still lists them.
+  const counted = d.leads.filter((l) => !l.duplicate);
+  const leads = scope === 'all' ? counted : counted.filter((l) => l.historical === (scope === 'historical'));
   return { ...d, leads, all: d.leads, scope };
 };
 const route = (fn) => (req, res) => {

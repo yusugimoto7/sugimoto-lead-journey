@@ -156,7 +156,7 @@ R.segments=async el=>{
 R.contracts=async el=>{
   const c=await cached('contracts');
   if(!c.available){el.innerHTML='<div class="note">No contract snapshot loaded. Upload contracts.json as a Render Secret File (see README), then refresh.</div>';return}
-  const link=id=>id?`<a href="${esc(c.odoo_url)}/web#id=${id}&model=crm.lead&view_type=form" target="_blank" rel="noopener" class="mono">${id}</a>`:'–';
+  const link=id=>id&&!String(id).startsWith('sheet:')?`<a href="${esc(c.odoo_url)}/web#id=${id}&model=crm.lead&view_type=form" target="_blank" rel="noopener" class="mono">${id}</a>`:'–';
   const tbl=(rows,cols)=>rows.length?`<div class="scroll"><table><tr>${cols.map(x=>`<th>${x[0]}</th>`).join('')}</tr>${rows.map(r=>`<tr>${cols.map(x=>`<td>${x[1](r)}</td>`).join('')}</tr>`).join('')}</table></div>`:'<div class="note">None.</div>';
   const C={id:['Odoo',r=>link(r.id)],name:['Lead',r=>esc(r.name||'–')],stage:['Stage',r=>esc(r.stage||'–')],user:['Salesperson',r=>esc(r.user||'–')],
     sheet:['Sheet status',r=>esc(r.sheetStatus||'–')],type:['Type',r=>esc(r.type||'–')],signed:['Signed',r=>`<span class="mono" style="white-space:nowrap">${esc(r.signed||'–')}</span>${r.dateFlags?`<div class="sub">${esc(r.dateFlags)}</div>`:''}`],
@@ -230,7 +230,7 @@ R.leads=async el=>{
 };
 function detail(l,odoo){
   const rows=[['ID',l.id],['Lead',l.name],['Company / name',l.partner],['Email',l.email],['Phone',l.phone],['Country',l.country],['Status',l.status],['Stage',l.stage],['Phase',l.phase],['Probability',l.probability!=null?l.probability+'%':''],['Salesperson',l.user],['Referred by',l.refUser],['Source',l.source],['Medium',l.medium],['Campaign',l.campaign],['Lost reason',l.lostReason],['Contract type',l.contractType],['Contract value',l.contractValue&&l.currency?money(l.contractValue,l.currency):l.contractValue],['Counted in revenue',l.revenueCounted?'Yes':'No'],['Contract sheet',l.sheet?`${l.sheet.status||l.sheet.outcome} · signed ${l.sheet.signed||'–'} · ${l.sheet.sheets.join(' + ')}`:'not in sheets'],['Budget',l.seg.budget],['Immigration path',l.seg.immigration],['Destination',l.seg.destination],['Created',l.created||(l.historical?'unknown (historical)':'')],['Imported at',l.importedAt],['Last updated',l.updated],['Closed',l.closed],['Notes',l.notes]];
-  $('#dlg').innerHTML=`<dl>${rows.filter(r=>r[1]!==''&&r[1]!=null).map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between"><a href="${esc(odoo)}/web#id=${l.id}&model=crm.lead&view_type=form" target="_blank" rel="noopener">Open in Odoo</a><button onclick="document.getElementById('dlg').close()">Close</button></div>`;
+  $('#dlg').innerHTML=`<dl>${rows.filter(r=>r[1]!==''&&r[1]!=null).map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between">${String(l.id).startsWith('sheet:')?'<span class="sub">Only in the contract sheets</span>':`<a href="${esc(odoo)}/web#id=${l.id}&model=crm.lead&view_type=form" target="_blank" rel="noopener">Open in Odoo</a>`}<button onclick="document.getElementById('dlg').close()">Close</button></div>`;
   $('#dlg').showModal();
 }
 

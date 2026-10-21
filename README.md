@@ -22,13 +22,19 @@ On startup the server runs `fields_get` on `crm.lead`, logs every field containi
 ## Deploy (Render)
 `render.yaml` is included. Set `ODOO_DB`, `ODOO_USERNAME`, `ODOO_API_KEY` and `DASHBOARD_PASSWORD` in the Render dashboard. The dashboard shows lead names, emails and phones, so set the password.
 
-## Contract sheets (Contracts tab)
-The dashboard confirms signed clients against a snapshot of the SparkBridge "Customer Info" and Finance "ALL Numbers"
-sheets. `tools/contract-snapshot.js` turns the sheets' grid data into `contracts.json`: status, dates (from cell serials),
-type, fees and sha256 hashes of the emails, no names or plain emails. It is still private business data and this repo
-is public, so it is git-ignored and never committed. On Render, upload it under Environment > Secret Files as
-`contracts.json` (read from `/etc/secrets/contracts.json`); locally set `CONTRACTS_FILE`. Without it the tab says so
-and nothing else changes.
+## Contract sheets (Contracts tab and conversions)
+Signed clients come from a snapshot of the SparkBridge "Customer Info" and Finance "ALL Numbers" sheets.
+`tools/contract-snapshot.js <sparkbridge-grid.json> <finance-grid.json> <plain-out.json>` turns the sheets' grid data
+(status, dates from cell serials, type, fees, sha256 of emails; no names or plain emails) into a plain JSON file,
+which is never committed, and `data/contracts.enc`, encrypted to `data/contracts.pub.pem` (RSA-OAEP + AES-256-GCM),
+which is committed because the repo is public. The server decrypts it with `CONTRACTS_PRIVATE_KEY` (PEM or base64 of
+it), set once in Render. Locally, `CONTRACTS_FILE` can point at the plain file instead.
+
+Conversion rules (owner, 2026-10-21): Stage 22 and the "Won" column are signed and paid. Odoo has real cards only from
+Nov 2024, so a signed card whose contract was signed earlier is a pre-CRM client: it moves to the historical period at
+its signing date, and if the client's original historical lead card exists, that card carries the conversion and the
+import card is left out as a duplicate. Signed clients with no Odoo card are added as converted. With a snapshot,
+historical outcomes are known (signed or not); the sheets start in January 2023.
 
 ## Offline test
 `npm run fake-odoo` starts a synthetic Odoo on :8069 (`ODOO_DB=testdb ODOO_USERNAME=tester ODOO_API_KEY=key`).

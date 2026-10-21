@@ -2,14 +2,15 @@
 // Builds contracts.json from the two contract sheets, exported as Sheets API grid data
 // (spreadsheets.get with includeGridData and effectiveValue/formattedValue for the ranges below).
 // The output holds no names, phones or plain emails: only sha256 hashes of the normalised emails.
-// It is still private business data: never commit it (the repo is public). Upload it to Render as a
-// Secret File named contracts.json, or point CONTRACTS_FILE at it locally.
+// It is still private business data: never commit the plain file (the repo is public). The script also writes
+// data/contracts.enc, encrypted to data/contracts.pub.pem; that one is committed and the server decrypts it with
+// CONTRACTS_PRIVATE_KEY. Locally, CONTRACTS_FILE can point at the plain file instead.
 //
 // Usage: node tools/contract-snapshot.js <sparkbridge-grid.json> <finance-grid.json> [out.json]
 //   SparkBridge "Customer Info" ranges: K, O, Q:R, S:W, Y (rows 2..)
 //   Finance "ALL Numbers" ranges: I:J, P, R:V, Z, AS, AY (rows 2..)
 const fs = require('fs');
-const { hashEmail, splitEmails } = require('../lib/contracts');
+const { hashEmail, splitEmails, encryptSnapshot, ENC_FILE, PUB_FILE } = require('../lib/contracts');
 
 const SHEETS = {
   sparkbridge: {
@@ -107,6 +108,8 @@ if (require.main === module) {
     contracts,
   };
   fs.writeFileSync(outFile, JSON.stringify(snap));
+  // The encrypted copy is the one that is committed and deployed (see lib/contracts.js).
+  if (fs.existsSync(PUB_FILE)) { fs.writeFileSync(ENC_FILE, encryptSnapshot(JSON.stringify(snap))); console.log(`encrypted copy -> ${ENC_FILE}`); }
   const conv = contracts.filter((c) => c.outcome === 'converted');
   console.log(`${contracts.length} rows (${conv.length} converted, ${contracts.filter((c) => c.outcome === 'terminated').length} terminated);`,
     `no email: ${contracts.filter((c) => !c.h.length).length}; flagged dates: ${contracts.filter((c) => c.dateFlags.length).length} -> ${outFile}`);
