@@ -58,7 +58,11 @@ dl{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:0}dt{color:v
 .scope{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mute)}
 .banner{background:rgba(var(--accent-rgb),.1);border:1px solid rgba(var(--accent-rgb),.35);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:12.5px;display:none}
 .loading{color:var(--mute);padding:40px;text-align:center}
-@media(max-width:600px){main{padding:12px}header,nav{padding-left:12px;padding-right:12px}.chart{height:260px}dl{grid-template-columns:100px 1fr}}
+#pbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 20px;border-bottom:1px solid var(--line);background:var(--card)}
+#pbar button.on{background:rgba(var(--accent-rgb),.14);color:var(--accent);font-weight:600}
+#pbar .sub{margin-left:6px}
+.up{color:#1a8a4a}.down{color:#c0392b}
+@media(max-width:600px){#pbar{padding:8px 12px}main{padding:12px}header,nav{padding-left:12px;padding-right:12px}.chart{height:260px}dl{grid-template-columns:100px 1fr}}
 </style>
 </head>
 <body>
@@ -67,6 +71,7 @@ dl{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:0}dt{color:v
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><label class="scope">Data scope <select id="scope" aria-label="Data scope"><option value="native">Native only</option><option value="historical">Historical only</option><option value="all">All leads</option></select></label><button id="refresh">Refresh from Odoo</button><button id="theme" aria-label="Toggle theme">Theme</button></div>
 </header>
 <nav id="tabs"></nav>
+<div id="pbar"></div>
 <main>
   <div class="warn" id="err"></div><div class="banner" id="banner"></div>
   <section id="t-overview"></section><section id="t-sources"></section><section id="t-journey"></section>
@@ -80,14 +85,27 @@ const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const n0=v=>v==null?'–':Number(v).toLocaleString('en-US',{maximumFractionDigits:0});
 const money=(v,c)=>c==='EUR'?'€'+n0(v):'C$'+n0(v);
+// Growth against the window of the same length just before the selected one (absent for "All time").
+const gpct=(c,p)=>p?Math.round(((c||0)-p)/p*100):null;
+const vs=(c,p)=>{if(p==null)return '';if(!p)return c?'new (0 the previous period)':'0 the previous period too';const v=gpct(c,p);return `<span class="${v>0?'up':v<0?'down':''}">${v>0?'+':''}${v}%</span> vs previous period (${n0(p)})`};
+const gcell=(c,p)=>{if(p==null)return '–';if(!p)return c?'<span class="up">new</span>':'–';const v=gpct(c,p);return `<span class="${v>0?'up':v<0?'down':''}">${v>0?'+':''}${v}%</span>`};
+const byName=(a,k='name')=>new Map((a||[]).map(x=>[x[k],x]));
+// Table of the top rows with their previous-period value and growth.
+function growthTable(cur,prev,label,{key='name',val='total',limit=15,extra=[]}={}){
+  const pm=prev?byName(prev,key):null;
+  return `<div class="scroll"><table><tr><th>${esc(label)}</th><th class="r">Now</th>${pm?'<th class="r">Before</th><th class="r">Growth</th>':''}${extra.map(e=>`<th class="r">${e[0]}</th>`).join('')}</tr>${cur.slice(0,limit).map(r=>{const pr=pm?(pm.get(r[key])||{})[val]||0:null;return `<tr><td>${esc(r[key]??'(none)')}</td><td class="r">${n0(r[val])}</td>${pm?`<td class="r">${n0(pr)}</td><td class="r">${gcell(r[val],pr)}</td>`:''}${extra.map(e=>`<td class="r">${e[1](r)}</td>`).join('')}</tr>`}).join('')}</table></div>`;
+}
 const store={};let charts={};let current='overview';let scope='native';try{scope=localStorage.getItem('scope')||'native'}catch(e){}
 
+// Every call carries the scope and, unless it is "All time", the selected window (lead date: Created on / Created at).
 async function api(p){
-  const r=await fetch(p+(p.includes('?')?'&':'?')+'scope='+scope);const t=await r.text();let j=null;try{j=JSON.parse(t)}catch(e){}
+  const w=periodDates(),q=new URLSearchParams({scope});
+  if(w&&!/[?&]from=/.test(p)&&!p.startsWith('/api/status')){q.set('from',w[0]);q.set('to',w[1])}
+  const r=await fetch(p+(p.includes('?')?'&':'?')+q);const t=await r.text();let j=null;try{j=JSON.parse(t)}catch(e){}
   if(!r.ok||!j){const e=new Error(j&&j.error||`Server answered ${r.status} ${r.statusText||''}`.trim());e.syncing=!!(j&&j.syncing)||r.status===502&&!j||r.status===504;throw e}
   return j}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-async function cached(k){return store[k]||(store[k]=await api('/api/'+k))}
+async function cached(k){const key=k+'|'+(periodDates()||['all']).join('~');return store[key]||(store[key]=await api('/api/'+k))}
 function col(i){return getComputedStyle(document.documentElement).getPropertyValue('--c'+((i%5)+1)).trim()}
 function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
 function mk(id,cfg){if(charts[id])charts[id].destroy();
@@ -106,49 +124,62 @@ function heat(m,label){
 }
 
 const R={};
-const RANGES=[['3d','3 days',3],['7d','7 days',7],['2w','2 weeks',14],['1m','1 month',30],['3m','3 months',91],['6m','6 months',182],['1y','1 year',365],['custom','Custom',0]];
+const RANGES=[['3d','3 days',3],['7d','7 days',7],['2w','2 weeks',14],['1m','1 month',30],['3m','3 months',91],['6m','6 months',182],['1y','1 year',365],['all','All time',0],['custom','Custom',0]];
 const BCOL={'Pre meeting':()=>col(0),'Meeting set and done':()=>col(1),'Pre contract':()=>col(4),'Contract sent':()=>col(3),'Signed and paid':()=>col(2),'Archive':()=>css('--mute'),'Long-term follow-up':()=>'#b9a66b','Other':()=>'#c9c8c0'};
 const MAIN_B=['Pre meeting','Meeting set and done','Pre contract','Contract sent','Signed and paid','Archive'];
 let P={range:'7d',from:'',to:'',basis:'created',dim:'source',source:'',medium:''};
 try{P=Object.assign(P,JSON.parse(localStorage.getItem('period')||'{}'))}catch(e){}
 const isoDay=d=>d.toISOString().slice(0,10);
 function periodDates(){
+  if(P.range==='all')return null;
   if(P.range==='custom'&&P.from&&P.to)return [P.from,P.to];
-  const r=RANGES.find(x=>x[0]===P.range)||RANGES[1];const to=new Date();return [isoDay(new Date(to-(r[2]-1)*864e5)),isoDay(to)];
+  // Custom without both dates falls back to the last month.
+  const r=RANGES.find(x=>x[0]===P.range&&x[2])||RANGES[3];const to=new Date();return [isoDay(new Date(to-(r[2]-1)*864e5)),isoDay(to)];
+}
+function renderPbar(){
+  const w=periodDates();
+  let prev='';if(w){const a=Date.parse(w[0]+'T00:00:00Z'),b=Date.parse(w[1]+'T00:00:00Z'),n=Math.round((b-a)/864e5)+1;prev=`compared with ${isoDay(new Date(a-n*864e5))} → ${isoDay(new Date(a-864e5))}`}
+  $('#pbar').innerHTML=RANGES.map(([k,l])=>`<button data-r="${k}" class="${P.range===k?'on':''}">${l}</button>`).join('')+
+    (P.range==='custom'?`<input type="date" id="pf" value="${esc(w?w[0]:'')}"> – <input type="date" id="pt" value="${esc(w?w[1]:'')}">`:'')+
+    `<span class="sub">${w?`${w[0]} → ${w[1]} · ${prev}`:'All time, no comparison'} · by lead date (Created on; Created at for imported cards)</span>`;
+  const apply=()=>{try{localStorage.setItem('period',JSON.stringify(P))}catch(e){}renderPbar();document.querySelectorAll('section').forEach(x=>{if(x.id!=='t-'+current)x.innerHTML=''});show(current)};
+  $('#pbar').querySelectorAll('button[data-r]').forEach(b=>b.onclick=()=>{const w0=periodDates();P.range=b.dataset.r;if(P.range==='custom'&&!(P.from&&P.to)){const d=w0||[isoDay(new Date(Date.now()-29*864e5)),isoDay(new Date())];P.from=d[0];P.to=d[1]}apply()});
+  ['pf','pt'].forEach(id=>{const x=$('#'+id);if(x)x.onchange=()=>{P[id==='pf'?'from':'to']=x.value;if(P.from&&P.to&&P.from<=P.to)apply()}});
 }
 async function renderPeriod(box){
   try{localStorage.setItem('period',JSON.stringify(P))}catch(e){}
-  const [from,to]=periodDates();
+  const [from,to]=periodDates()||[isoDay(new Date(Date.now()-29*864e5)),isoDay(new Date())];
   const q=new URLSearchParams({from,to,basis:P.basis,dim:P.dim,source:P.source,medium:P.medium});
   const d=await api('/api/period?'+q);
-  const delta=(a,b)=>{if(!b)return a?'new vs 0 before':'–';const v=Math.round((a-b)/b*100);return `${v>0?'+':''}${v}% vs previous ${d.span} days (${n0(b)})`};
+  const delta=(a,b)=>vs(a,b);
   const shown=[...MAIN_B,...['Other'].filter(b=>d.current[b]||d.previous[b])];
   const opt=(k,label,opts,cur)=>`<select data-p="${k}"><option value="">${label}</option>${opts.map(o=>`<option ${cur===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
   box.innerHTML=`<div class="card" style="margin-bottom:14px"><h3>What happened in Odoo</h3>
-   <div class="filters" style="align-items:center">${RANGES.map(([k,l])=>`<button data-r="${k}" class="${P.range===k?'on':''}" style="${P.range===k?'background:rgba(var(--accent-rgb),.14);color:var(--accent);font-weight:600':''}">${l}</button>`).join('')}
-   ${P.range==='custom'?`<input type="date" data-p="from" value="${esc(P.from||from)}"> – <input type="date" data-p="to" value="${esc(P.to||to)}">`:''}</div>
    <div class="filters"><select data-p="basis"><option value="created" ${P.basis==='created'?'selected':''}>New leads (created in period)</option><option value="stage" ${P.basis==='stage'?'selected':''}>Stage moves (reached current stage in period)</option></select>
    <select data-p="dim">${[['source','By source'],['medium','By medium'],['campaign','By campaign'],['user','By salesperson'],['referrer','By referred by']].map(([k,l])=>`<option value="${k}" ${P.dim===k?'selected':''}>${l}</option>`).join('')}</select>
    ${opt('source','All sources',d.facets.source,P.source)}${opt('medium','All mediums',d.facets.medium,P.medium)}</div>
-   <div class="note">${esc(d.from)} → ${esc(d.to)} (${d.span} days) · ${d.basis==='created'?'leads created in the period, shown in the stage group they are in now (recent leads have had less time to move on, so later groups look smaller; use Stage moves to see activity)':'cards whose current stage was reached in the period, i.e. what moved'} · native Odoo cards only; contract records imported in bulk are placed at their contract date.</div>
+   <div class="note">${esc(d.from)} → ${esc(d.to)} (${d.span} days) · ${d.basis==='created'?'leads created in the period, shown in the stage group they are in now (recent leads have had less time to move on, so later groups look smaller; use Stage moves to see activity)':'cards whose current stage was reached in the period, i.e. what moved'} · native Odoo cards only${P.range==='all'?' · "All time" is selected, so this block shows the last 30 days':''}.</div>
    <div class="grid kpis">${kpi(d.basis==='created'?'New leads':'Cards moved',n0(d.total),delta(d.total,d.prevTotal))}${shown.map(b=>kpi(b,n0(d.current[b]),delta(d.current[b],d.previous[b]))).join('')}</div>
    <div class="grid two">${card(`Per ${d.unit}`,canvas('c-per'))}${card(`By ${({source:'source',medium:'medium',campaign:'campaign',user:'salesperson',referrer:'referred by'})[d.dim]}`,`<div class="scroll"><table><tr><th>${esc(d.dim)}</th><th class="r">Total</th>${shown.map(b=>`<th class="r">${esc(b)}</th>`).join('')}</tr>${d.rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="r">${n0(r.total)}</td>${shown.map(b=>`<td class="r">${r[b]||''}</td>`).join('')}</tr>`).join('')}</table></div>${d.otherRows?`<div class="note">+${d.otherRows} more</div>`:''}`)}</div></div>`;
   mk('c-per',{type:'bar',data:{labels:d.timeline.map(x=>x.key),datasets:shown.map(b=>({label:b,data:d.timeline.map(x=>x[b]),backgroundColor:BCOL[b]()}))},options:{scales:{x:{stacked:true},y:{stacked:true}},plugins:{legend:{position:'bottom'}}}});
-  box.querySelectorAll('button[data-r]').forEach(b=>b.onclick=()=>{P.range=b.dataset.r;if(P.range==='custom'&&!P.from){P.from=from;P.to=to}renderPeriod(box)});
   box.querySelectorAll('[data-p]').forEach(x=>x.onchange=e=>{P[e.target.dataset.p]=e.target.value;renderPeriod(box)});
 }
 R.overview=async el=>{
-  const s=await cached('summary'),t=s.totals;
-  const pending=t.open;
-  const h=s.historical;
-  el.innerHTML=`<div id="period"></div><h3 style="margin:18px 0 10px">All time (${scope==='native'?'native':scope})</h3><div class="grid kpis">${kpi('Total leads',n0(t.total),scope==='native'?'native leads'+(s.monthly.length?', since '+s.monthly[0].month:''):scope==='all'?'native + historical':'historical only')}${kpi('Lost',n0(t.lost),'inactive + reason')}${kpi('Pending',n0(pending),'open, not converted')}${kpi('Converted',n0(t.converted),'Stage 22')}${kpi('Conversion rate',t.rate+'%',t.historical?'converted / '+n0(t.rateBase)+' non-historical':'converted / total')}</div>
-  <div class="grid two">${card('Leads per month',canvas('c-month')+'<div class="note">'+(scope==='native'?'Native leads by creation date.':'Historical leads are placed by their Created at date; '+n0(h.total-h.withRealDate)+' without it are left out.')+'</div>')}${card('By year',canvas('c-year'))}</div>
-  ${card('Historical (imported) leads',h.total?`<div class="grid kpis" style="margin:0">${kpi('Imported',n0(h.total),n0(h.native)+' native leads')}${kpi('With contract data',n0(h.withContractData),n0(h.withContractValue)+' with a value')}${kpi('At Stage 22 in Odoo',n0(h.atStage22),'not counted as signed')}${kpi('Have a lost reason',n0(h.withLostReason),'not counted as lost')}</div><div class="note">Imported ${esc((h.importedFrom||'').slice(0,10))} to ${esc((h.importedTo||'').slice(0,10))}. ${n0(h.withRealDate)} have a Created at date${h.withRealDate?` (${esc((h.realFrom||'').slice(0,10))} to ${esc((h.realTo||'').slice(0,10))})`:''}. Their outcomes are unknown, so they are excluded from conversion rates, revenue, lost analysis and time charts. Use the Data scope menu to browse them.</div>`:'<div class="note">No leads have the Historical lost reason. Check /api/status → lost_reasons.</div>')}`;
-  if(!s.monthly.length)document.getElementById('c-month').parentElement.innerHTML='<div class="note">No dated native leads in this scope.</div>';
-  else mk('c-month',{type:'line',data:{labels:s.monthly.map(m=>m.month),datasets:[
-    {label:'Leads',data:s.monthly.map(m=>m.total),borderColor:col(0),backgroundColor:col(0),pointRadius:0,tension:.25},
-    {label:'Converted',data:s.monthly.map(m=>m.converted),borderColor:col(2),backgroundColor:col(2),pointRadius:0,tension:.25}]},options:{interaction:{mode:'index',intersect:false}}});
-  mk('c-year',{type:'bar',data:{labels:s.byYear.map(y=>y.year),datasets:[
+  const s=await cached('summary'),t=s.totals,pt=s._prev?s._prev.totals:null,w=s._window;
+  const h=s.historical,g=k=>pt?vs(t[k],pt[k]):'';
+  const ser=s.series||{unit:'month',points:[]};
+  el.innerHTML=`<div id="period"></div><h3 style="margin:18px 0 10px">${w?`Selected period ${esc(w.from)} → ${esc(w.to)}`:'All time'} (${scope==='native'?'native':scope})</h3>
+  <div class="grid kpis">${kpi('Leads',n0(t.total),g('total')||(scope==='native'?'native leads':''))}${kpi('Lost',n0(t.lost),g('lost')||'inactive + reason')}${kpi('Pending',n0(t.open),g('open')||'open, not converted')}${kpi('Converted',n0(t.converted),g('converted')||'Stage 20-22 or Won')}${kpi('Conversion rate',t.rate+'%',pt?`${pt.rate}% the previous period`:'converted / leads')}</div>
+  <div class="grid two">${card(`Leads per ${ser.unit}`,canvas('c-month')+'<div class="note">By lead date: Created on for Odoo cards, Created at for imported cards.</div>')}${card(w?'This period vs the previous one':'By year',canvas('c-year'))}</div>
+  ${!w?card('Historical (imported) leads',h.total?`<div class="grid kpis" style="margin:0">${kpi('Imported',n0(h.total),n0(h.native)+' native leads')}${kpi('With a Created at date',n0(h.withRealDate),esc((h.realFrom||'').slice(0,10))+' to '+esc((h.realTo||'').slice(0,10)))}</div><div class="note">Imported cards (lost reason "Historical", and the 2026-09-25 sheet import) are dated by Created at. Their outcomes come from the contract sheets. Use the Data scope menu to browse them.</div>`:'<div class="note">No historical leads in this scope.</div>'):''}`;
+  if(!ser.points.length)document.getElementById('c-month').parentElement.innerHTML='<div class="note">No dated leads in this scope and period.</div>';
+  else mk('c-month',{type:'line',data:{labels:ser.points.map(m=>m.key),datasets:[
+    {label:'Leads',data:ser.points.map(m=>m.total),borderColor:col(0),backgroundColor:col(0),pointRadius:ser.points.length>60?0:2,tension:.25},
+    {label:'Converted',data:ser.points.map(m=>m.converted),borderColor:col(2),backgroundColor:col(2),pointRadius:ser.points.length>60?0:2,tension:.25}]},options:{interaction:{mode:'index',intersect:false}}});
+  if(w&&pt)mk('c-year',{type:'bar',data:{labels:['Leads','Converted','Lost','Pending'],datasets:[
+    {label:`Previous (${w.prevFrom} → ${w.prevTo})`,data:[pt.total,pt.converted,pt.lost,pt.open],backgroundColor:css('--mute')},
+    {label:`Selected (${w.from} → ${w.to})`,data:[t.total,t.converted,t.lost,t.open],backgroundColor:col(0)}]}});
+  else mk('c-year',{type:'bar',data:{labels:s.byYear.map(y=>y.year),datasets:[
     {label:'Total',data:s.byYear.map(y=>y.total),backgroundColor:col(0)},{label:'Converted',data:s.byYear.map(y=>y.converted),backgroundColor:col(2)},{label:'Lost',data:s.byYear.map(y=>y.lost),backgroundColor:col(3)}]}});
   await renderPeriod($('#period'));
 };
@@ -161,24 +192,28 @@ function dual(id,rows,limit=15){
     options:{scales:{y:{position:'left',title:{display:true,text:'Leads'}},y1:{position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Conv. %'},ticks:{callback:v=>v+'%'}}}}});
 }
 R.sources=async el=>{
-  const s=await cached('sources');
+  const s=await cached('sources'),p=s._prev;
+  const ex=[['Converted',r=>n0(r.converted)],['Rate',r=>r.rate+'%']];
   el.innerHTML=`<div class="grid">${card('By source (top 15)',canvas('c-src'))}${card('By medium',canvas('c-med'))}${card('By campaign (top 15)',canvas('c-cam'))}${card('Referred by: influencer page / partner (top 15)',canvas('c-ref'))}</div>
-  <div class="note">Bars = lead volume, line = conversion rate (Stage 22 / total). Odoo's UTM model has no separate "content" dimension, so campaign is shown as the third cut.</div>`;
+  <div class="note">Bars = lead volume, line = conversion rate (signed / leads). Odoo's UTM model has no separate "content" dimension, so campaign is shown as the third cut.</div>
+  <div class="grid two">${card('Sources: growth',growthTable(s.source,p&&p.source,'Source',{extra:ex,limit:20}))}${card('Mediums: growth',growthTable(s.medium,p&&p.medium,'Medium',{extra:ex,limit:20}))}${card('Campaigns: growth',growthTable(s.campaign,p&&p.campaign,'Campaign',{extra:ex,limit:20}))}${card('Referred by: growth',growthTable(s.referrer.filter(r=>r.name!==null&&r.name!=='(none)'),p&&p.referrer,'Referred by',{extra:ex,limit:20}))}</div>`;
   dual('c-src',s.source);dual('c-med',s.medium);dual('c-cam',s.campaign);dual('c-ref',s.referrer.filter(r=>r.name!==null&&r.name!=='(none)'));
 };
 
 R.journey=async el=>{
-  const j=await cached('journey');
-  const max=Math.max(1,...j.phases.map(p=>p.reached));
-  el.innerHTML=card('Funnel by phase',`<div class="note">Bar = leads that reached this phase or beyond (by their current/last stage, so lost leads count up to where they stalled). Long-Term Nurture is outside the linear flow.</div>`+
-    j.phases.map(p=>`<div class="frow"><div class="n">${esc(p.phase)}<small>stages ${p.range}</small></div><div><div class="bar" style="width:${Math.max(p.reached/max*100,3)}%">${n0(p.reached)}</div><small class="sub">${n0(p.current)} currently here · ${n0(p.open)} open · ${n0(p.lost)} lost</small></div></div>`).join(''))+
-    `<h3 style="margin:18px 0 8px">Stage detail</h3><div class="grid stages">${j.stages.map(s=>`<div class="card kpi"><div class="l">${esc(s.phase)}</div><div style="font-weight:600;margin:2px 0">${esc(s.stage)}</div><div class="v">${n0(s.total)}</div><div class="s">${n0(s.open)} open · ${n0(s.lost)} lost · avg prob ${s.avgProbability??'–'}%</div></div>`).join('')}</div>`;
+  const j=await cached('journey'),p=j._prev;
+  const pp=p?byName(p.phases,'phase'):null,ps=p?byName(p.stages,'stage'):null;
+  const max=Math.max(1,...j.phases.map(x=>x.reached));
+  el.innerHTML=card('Funnel by phase',`<div class="note">Bar = leads of the period that reached this phase or beyond (by their current/last stage, so lost leads count up to where they stalled). Long-Term Nurture is outside the linear flow.</div>`+
+    j.phases.map(x=>`<div class="frow"><div class="n">${esc(x.phase)}<small>stages ${x.range}</small></div><div><div class="bar" style="width:${Math.max(x.reached/max*100,3)}%">${n0(x.reached)}</div><small class="sub">${n0(x.current)} currently here · ${n0(x.open)} open · ${n0(x.lost)} lost${pp?` · reached ${vs(x.reached,(pp.get(x.phase)||{}).reached||0)}`:''}</small></div></div>`).join(''))+
+    `<h3 style="margin:18px 0 8px">Stage detail</h3><div class="grid stages">${j.stages.map(x=>`<div class="card kpi"><div class="l">${esc(x.phase)}</div><div style="font-weight:600;margin:2px 0">${esc(x.stage)}</div><div class="v">${n0(x.total)}</div><div class="s">${n0(x.open)} open · ${n0(x.lost)} lost${ps?`<br>${vs(x.total,(ps.get(x.stage)||{}).total||0)}`:''}</div></div>`).join('')}</div>`;
 };
 
 R.segments=async el=>{
   const s=await cached('segments');
   const blocks=[['budget','Budget distribution'],['immigration','Immigration paths'],['destination','Destination split']];
-  el.innerHTML=`<div class="grid two">${blocks.map(([k,t])=>s[k]?card(`${t} <span class="sub mono">${esc(s[k].field)}</span>`,canvas('c-'+k)):card(t,'<div class="note">No matching custom field found on crm.lead (looked for names/labels containing budget / immigration, program, path / destination). Check /api/status → fields.</div>')).join('')}${card('Country (Odoo country field)',canvas('c-country'))}</div>`;
+  const p=s._prev;
+  el.innerHTML=`<div class="grid two">${blocks.map(([k,t])=>s[k]?card(`${t} <span class="sub mono">${esc(s[k].field)}</span>`,canvas('c-'+k)+growthTable(s[k].data,p&&p[k]&&p[k].data,t.split(' ')[0],{limit:12,extra:[['Converted',r=>n0(r.converted)]]})):card(t,'<div class="note">No matching custom field found on crm.lead (looked for names/labels containing budget / immigration, program, path / destination). Check /api/status → fields.</div>')).join('')}${card('Country (Odoo country field)',canvas('c-country')+growthTable(s.country,p&&p.country,'Country',{limit:12}))}</div>`;
   for(const [k] of blocks) if(s[k]){const d=s[k].data.slice(0,12);
     mk('c-'+k,{type:k==='immigration'?'bar':'doughnut',data:{labels:d.map(x=>x.name),datasets:[{label:'Leads',data:d.map(x=>x.total),backgroundColor:d.map((_,i)=>col(i))}]},options:k==='immigration'?{indexAxis:'y',plugins:{legend:{display:false}}}:{}})}
   const c=s.country.slice(0,12);
@@ -196,9 +231,9 @@ R.contracts=async el=>{
     sheet:['Sheet status',r=>esc(r.sheetStatus||'–')],type:['Type',r=>esc(r.type||'–')],signed:['Signed',r=>`<span class="mono" style="white-space:nowrap">${esc(r.signed||'–')}</span>${r.dateFlags?`<div class="sub">${esc(r.dateFlags)}</div>`:''}`],
     rows:['Contracts',r=>`<span class="sub">${esc(r.rows)}</span>`],card:['Odoo card',r=>r.id?(r.importedCard?'imported later':r.historical?'historical':'native'):'none'],
     created:['Created',r=>`<span class="mono">${esc((r.created||'').slice(0,10))}</span>`]};
-  const n=c.native,p=c.preNative,s=c.stage22;
-  el.innerHTML=feedNote(c)+`
-  <div class="grid kpis">${kpi('Signed clients',n0(c.clients.signed),`${n0(c.clients.terminated)} terminated · ${n0(c.clients.rows)} contract rows`)}${kpi('Signed from Nov 2024',n0(n.signed),`${n0(n.confirmedStage22)} in Stage 22 or Won`)}${kpi('Signed before Nov 2024',n0(p.signed),'pre-CRM period')}${kpi('Stage 22 / Won confirmed',`${n0(s.confirmed)} / ${n0(s.total)}`,'signed cards the sheets confirm')}</div>
+  const n=c.native,p=c.preNative,s=c.stage22,q=c._prev;
+  el.innerHTML=feedNote(c)+(c._window?`<div class="note">Contracts signed ${esc(c._window.from)} → ${esc(c._window.to)}; signed Odoo cards created in that window.</div>`:'')+`
+  <div class="grid kpis">${kpi('Signed clients',n0(c.clients.signed),q?vs(c.clients.signed,q.clients.signed):`${n0(c.clients.terminated)} terminated · ${n0(c.clients.rows)} contract rows`)}${kpi('Signed from Nov 2024',n0(n.signed),(q?vs(n.signed,q.native.signed)+' · ':'')+`${n0(n.confirmedStage22)} in Stage 20-22 or Won`)}${kpi('Signed before Nov 2024',n0(p.signed),q?vs(p.signed,q.preNative.signed):'pre-CRM period')}${kpi('Signed cards confirmed',`${n0(s.confirmed)} / ${n0(s.total)}`,'Stage 20-22 / Won cards the sheets confirm')}</div>
   <div class="grid two">${card('Signed clients by year',canvas('c-cy'))}${card('Before Nov 2024: which Odoo card holds the contract',`<div class="scroll"><table><tr><th>Odoo card</th><th class="r">Clients</th></tr><tr><td>Imported later (Won etc.)</td><td class="r">${n0(p.importedCard)}</td></tr><tr><td>Native card</td><td class="r">${n0(p.nativeCard)}</td></tr><tr><td>Historical card</td><td class="r">${n0(p.historicalCardOnly)}</td></tr><tr><td>No card</td><td class="r">${n0(p.noCard)}</td></tr></table></div>`)}</div>
   ${card(`Signed from Nov 2024 but not in Stage 22 or Won (${n0(n.signedNotStage22.length)})`,tbl(n.signedNotStage22,[C.id,C.name,C.stage,C.user,C.sheet,C.type,C.signed,C.rows]))}
   ${card(`Stage 22 or Won but the sheets say not signed (${n0(s.sheetSaysNot.length)})`,tbl(s.sheetSaysNot,[C.id,C.name,C.stage,C.user,C.sheet]))}
@@ -210,46 +245,49 @@ R.contracts=async el=>{
 R.revenue=async el=>{
   const c=await cached('revenue-check');
   if(!c.available){el.innerHTML='<div class="note">The contracts feed (n8n) could not be read yet.</div>';return}
-  const t=c.tally,link=id=>oLink(c.odoo_url,id),cur=(v,k)=>v?(k==='EUR'?'€':'C$')+n0(v):'–';
+  const t=c.tally,q=c._prev&&c._prev.tally,link=id=>oLink(c.odoo_url,id),cur=(v,k)=>v?(k==='EUR'?'€':'C$')+n0(v):'–';
+  const sumOf=(r,cu)=>(r?r.totals:[]).filter(x=>x.currency===cu&&x.company!=='Sales tab').reduce((a,x)=>a+x.sheet,0);
   const groups={};c.issues.forEach(i=>{(groups[i.problem]=groups[i.problem]||[]).push(i)});
   const I=[['Contract',r=>`${esc(r.company==='SG'?'Finance':'SparkBridge')} <span class="mono">${esc(r.no||'')}</span><div class="sub">row ${r.row}</div>`],['Odoo',r=>link(r.id)],['Lead',r=>esc(r.name||'–')],['Type',r=>esc(r.type||'–')],['Signed',r=>`<span class="mono">${esc(r.signed||'–')}</span>`],['Sheet',r=>`${cur(r.sheetFee,r.currency)}<div class="sub">${esc(r.sheetColumns)}</div>`],['Odoo fee',r=>cur(r.odooFee,r.currency),'r']];
   el.innerHTML=feedNote(c)+`<div class="note">${esc(c.note)}</div>
-  <div class="grid kpis">${kpi('Signed contracts checked',n0(t.checked))}${kpi('Odoo = sheet',n0(t.match),`${Math.round(t.match/Math.max(1,t.checked)*100)}%`)}${kpi('Odoo ≠ sheet',n0(t.mismatch))}${kpi('No fee anywhere',n0(t.zeroEverywhere),`${n0(t.unreadableFee)} fee cells are #N/A`)}</div>
+  <div class="grid kpis">${kpi('Contract value CAD (sheets)',cur(sumOf(c,'CAD'),'CAD'),c._prev?vs(sumOf(c,'CAD'),sumOf(c._prev,'CAD')):'')}${kpi('Contract value EUR (sheets)',cur(sumOf(c,'EUR'),'EUR'),c._prev?vs(sumOf(c,'EUR'),sumOf(c._prev,'EUR')):'')}${kpi('Signed contracts checked',n0(t.checked),q?vs(t.checked,q.checked):'')}${kpi('Odoo = sheet',n0(t.match),`${Math.round(t.match/Math.max(1,t.checked)*100)}%`)}${kpi('Odoo ≠ sheet',n0(t.mismatch))}${kpi('No fee anywhere',n0(t.zeroEverywhere),`${n0(t.unreadableFee)} fee cells are #N/A`)}</div>
   ${card('Contract value by signing year: sheets vs Odoo vs what the Sales tab shows today',tbl(c.totals,[['Year',r=>esc(r.year)],['Company',r=>esc(r.company==='SG'?'Sugimoto (Finance)':r.company==='SB'?'SparkBridge':r.company)],['Currency',r=>esc(r.currency)],['Contracts',r=>n0(r.contracts),'r'],['Sheets',r=>n0(r.sheet),'r'],['Odoo fee fields',r=>n0(r.odoo),'r'],['Sales tab today',r=>r.dashboard?n0(r.dashboard):'–','r']]))}
   ${Object.entries(groups).map(([k,rows])=>card(`${esc(k)} (${n0(rows.length)})`,tbl(rows,I))).join('')}
   ${card(`Unusual fee for the contract type (${n0(c.outliers.length)})`,tbl(c.outliers,[['Contract',r=>`${esc(r.company==='SG'?'Finance':'SparkBridge')} <span class="mono">${esc(r.no||'')}</span> · row ${r.row}`],['Odoo',r=>link(r.id)],['Type',r=>esc(r.type||'–')],['Fee',r=>cur(r.fee,r.currency),'r'],['Type median',r=>cur(r.typeMedian,r.currency),'r']]))}`;
 };
 const RT={step:'',user:'',status:''};
 R.retarget=async el=>{
-  const c=await cached('retargeting');
+  const c=await cached('retargeting'),q=c._prev,pw=periodDates(),csvHref='/api/retargeting.csv'+(pw?`?from=${pw[0]}&to=${pw[1]}`:'');
   const rows=c.rows.filter(r=>(!RT.step||r.stepLabel===RT.step)&&(!RT.user||(r.user||'(none)')===RT.user)&&(!RT.status||r.status===RT.status));
   const sel=(k,l,opts)=>`<select data-k="${k}"><option value="">${l}</option>${opts.map(o=>`<option ${RT[k]===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
-  el.innerHTML=`<div class="note">People who received a draft or the main contract and never signed, one row per person (a person who signed on any card is left out). Draft sent first, newest first. Draft date = contract issued date in the sheets, else Odoo "Contract sent on".</div>
-  <div class="grid kpis">${Object.entries(c.byStep).map(([k,v])=>kpi(k,n0(v))).join('')}${kpi('Still open in Odoo',n0(c.byStatus.Open||0),`${n0(c.byStatus['Archived (no reason)']||0)} archived · ${n0(c.byStatus.Lost||0)} lost`)}</div>
-  <div class="filters">${sel('step','Step',Object.keys(c.byStep))}${sel('user','Salesperson',Object.keys(c.bySalesperson).sort())}${sel('status','Odoo status',Object.keys(c.byStatus))}<button onclick="location.href='/api/retargeting.csv'">Export CSV (all)</button></div>
+  el.innerHTML=`<div class="note">${c._window?`Draft or main contract issued ${esc(c._window.from)} → ${esc(c._window.to)}. `:''}People who received a draft or the main contract and never signed, one row per person (a person who signed on any card is left out). Draft sent first, newest first. Draft date = contract issued date in the sheets, else Odoo "Contract sent on".</div>
+  <div class="grid kpis">${kpi('People to retarget',n0(c.total),q?vs(c.total,q.total):'')}${Object.entries(c.byStep).map(([k,v])=>kpi(k,n0(v),q?vs(v,q.byStep[k]||0):'')).join('')}${kpi('Still open in Odoo',n0(c.byStatus.Open||0),`${n0(c.byStatus['Archived (no reason)']||0)} archived · ${n0(c.byStatus.Lost||0)} lost`)}</div>
+  <div class="filters">${sel('step','Step',Object.keys(c.byStep))}${sel('user','Salesperson',Object.keys(c.bySalesperson).sort())}${sel('status','Odoo status',Object.keys(c.byStatus))}<button onclick="location.href='${csvHref}'">Export CSV</button></div>
   ${card(`List (${n0(rows.length)})`,tbl(rows,[['Step',r=>esc(r.stepLabel)],['Draft date',r=>`<span class="mono">${esc(r.draftOn||'–')}</span>`],['Odoo',r=>oLink(c.odoo_url,r.id)],['Lead',r=>`${esc(r.name)}<div class="sub">${esc(r.partner||'')}</div>`],['Contact',r=>`<span class="sub">${esc(r.email||'')}<br>${esc(r.phone||'')}</span>`],['Salesperson',r=>esc(r.user||'–')],['Stage / status',r=>`${esc(r.stage)}<div class="sub">${esc(r.status)}${r.lostReason?' · '+esc(r.lostReason):''}</div>`],['Contract',r=>`${esc(r.contractType||'–')}<div class="sub">${r.fee?(r.currency==='EUR'?'€':'C$')+n0(r.fee):''}</div>`]],300))}`;
   el.querySelectorAll('select').forEach(x=>x.onchange=e=>{RT[e.target.dataset.k]=e.target.value;R.retarget(el)});
 };
 R.lost=async el=>{
-  const l=await cached('lost');
-  el.innerHTML=`<div class="grid kpis">${kpi('Lost (with reason)',n0(l.total))}${kpi('Archived, no reason',n0(l.archivedWithoutReason),'not counted as lost')}</div>
-  <div class="grid two">${card('Lost by reason',canvas('c-lost'))}${card('Lost by stage',`<div class="scroll"><table><tr><th>Stage</th><th class="r">Lost</th><th class="r">Share</th></tr>${l.byStage.map(s=>`<tr><td>${esc(s.stage)}</td><td class="r">${n0(s.count)}</td><td class="r">${s.share}%</td></tr>`).join('')}</table></div>`)}</div>`;
+  const l=await cached('lost'),p=l._prev;
+  el.innerHTML=`<div class="grid kpis">${kpi('Lost (with reason)',n0(l.total),p?vs(l.total,p.total):'')}${kpi('Archived, no reason',n0(l.archivedWithoutReason),p?vs(l.archivedWithoutReason,p.archivedWithoutReason):'not counted as lost')}</div>
+  <div class="grid two">${card('Lost by reason',canvas('c-lost')+growthTable(l.byReason,p&&p.byReason,'Reason',{key:'reason',val:'count',extra:[['Share',r=>r.share+'%']]}))}${card('Lost by stage',growthTable(l.byStage,p&&p.byStage,'Stage',{key:'stage',val:'count',limit:30,extra:[['Share',r=>r.share+'%']]}))}</div>`;
   const r=l.byReason.slice(0,15);
   mk('c-lost',{type:'bar',data:{labels:r.map(x=>x.reason),datasets:[{label:'Lost leads',data:r.map(x=>x.count),backgroundColor:col(3)}]},options:{indexAxis:'y',plugins:{legend:{display:false}}}});
 };
 
 R.sales=async el=>{
-  const s=await cached('sales'),k=s.kpi;
-  el.innerHTML=`<div class="grid kpis">${kpi('Signed (Stage 22)',n0(k.signed))}${kpi('Draft sent (13)',n0(k.draftSent),'excluded from revenue')}${kpi('Main contract sent (18)',n0(k.mainContractSent),'excluded from revenue')}${kpi('Revenue CAD',money(k.revenue.CAD.total,'CAD'),n0(k.revenue.CAD.contracts)+' contracts')}${kpi('Revenue EUR',money(k.revenue.EUR.total,'EUR'),n0(k.revenue.EUR.contracts)+' contracts')}</div>
-  ${k.signedWithoutRevenue?`<div class="note">${k.signedWithoutRevenue} Stage-22 leads have no CA-/EU- contract type or no value and are not in revenue. Fields used: ${esc(s.fields.contractType)} / ${esc(s.fields.contractValue)}</div>`:''}
-  <div class="grid two">${card('Contract types',`<div class="scroll"><table><tr><th>Type</th><th class="r">Contracts</th><th class="r">Revenue</th><th class="r">Avg</th></tr>${s.contractTypes.map(t=>`<tr><td>${esc(t.type)}</td><td class="r">${n0(t.count)}</td><td class="r">${t.currency?money(t.revenue,t.currency):'–'}</td><td class="r">${t.currency&&t.avgValue?money(t.avgValue,t.currency):'–'}</td></tr>`).join('')}</table></div>`)}
-  ${card('Salespeople',`<div class="scroll"><table><tr><th>Name</th><th class="r">Leads</th><th class="r">Signed</th><th class="r">Rate</th><th class="r">CAD</th><th class="r">EUR</th></tr>${s.bySalesperson.map(p=>`<tr><td>${esc(p.name)}</td><td class="r">${n0(p.total)}</td><td class="r">${n0(p.converted)}</td><td class="r">${p.rate}%</td><td class="r">${money(p.revenue.CAD.total,'CAD')}</td><td class="r">${money(p.revenue.EUR.total,'EUR')}</td></tr>`).join('')}</table></div>`)}</div>`;
+  const s=await cached('sales'),k=s.kpi,p=s._prev,pk=p&&p.kpi;
+  const ps=p?byName(p.bySalesperson):null;
+  el.innerHTML=`<div class="grid kpis">${kpi('Signed (20-22, Won)',n0(k.signed),pk?vs(k.signed,pk.signed):'')}${kpi('Draft sent (13)',n0(k.draftSent),pk?vs(k.draftSent,pk.draftSent):'excluded from revenue')}${kpi('Main contract sent (18)',n0(k.mainContractSent),pk?vs(k.mainContractSent,pk.mainContractSent):'excluded from revenue')}${kpi('Revenue CAD',money(k.revenue.CAD.total,'CAD'),(pk?vs(k.revenue.CAD.total,pk.revenue.CAD.total)+' · ':'')+n0(k.revenue.CAD.contracts)+' contracts')}${kpi('Revenue EUR',money(k.revenue.EUR.total,'EUR'),(pk?vs(k.revenue.EUR.total,pk.revenue.EUR.total)+' · ':'')+n0(k.revenue.EUR.contracts)+' contracts')}</div>
+  <div class="note">Revenue here is still the old field (${esc(s.fields.contractValue)}); the Revenue check tab shows why it is not reliable yet. Leads and signings are counted by lead date.</div>
+  ${k.signedWithoutRevenue?`<div class="note">${k.signedWithoutRevenue} signed leads have no CA-/EU- contract type or no value and are not in revenue. Fields used: ${esc(s.fields.contractType)} / ${esc(s.fields.contractValue)}</div>`:''}
+  <div class="grid two">${card('Contract types',growthTable(s.contractTypes,p&&p.contractTypes,'Type',{key:'type',val:'count',limit:30,extra:[['Revenue',t=>t.currency?money(t.revenue,t.currency):'–'],['Avg',t=>t.currency&&t.avgValue?money(t.avgValue,t.currency):'–']]}))}
+  ${card('Salespeople',`<div class="scroll"><table><tr><th>Name</th><th class="r">Leads</th>${ps?'<th class="r">Growth</th>':''}<th class="r">Signed</th>${ps?'<th class="r">Before</th>':''}<th class="r">Rate</th><th class="r">CAD</th><th class="r">EUR</th></tr>${s.bySalesperson.map(x=>{const q=ps?ps.get(x.name)||{total:0,converted:0}:null;return `<tr><td>${esc(x.name)}</td><td class="r">${n0(x.total)}</td>${q?`<td class="r">${gcell(x.total,q.total)}</td>`:''}<td class="r">${n0(x.converted)}</td>${q?`<td class="r">${n0(q.converted)}</td>`:''}<td class="r">${x.rate}%</td><td class="r">${money(x.revenue.CAD.total,'CAD')}</td><td class="r">${money(x.revenue.EUR.total,'EUR')}</td></tr>`}).join('')}</table></div>`)}</div>`;
 };
 
 R.deep=async el=>{
-  const d=await cached('deep');
+  const d=await cached('deep'),pc=d._prev?byName(d._prev.campaigns):null;
   el.innerHTML=`<div class="grid">${card('Time in system by source (avg days)',canvas('c-time'))}
-  ${card('Campaign performance',`<div class="scroll"><table><tr><th>Campaign</th><th class="r">Leads</th><th class="r">Signed</th><th class="r">Rate</th><th class="r">Lost</th><th class="r">Days to sign</th><th class="r">CAD</th><th class="r">EUR</th></tr>${d.campaigns.map(c=>`<tr><td>${esc(c.name)}</td><td class="r">${n0(c.total)}</td><td class="r">${n0(c.converted)}</td><td class="r">${c.rate}%</td><td class="r">${n0(c.lost)}</td><td class="r">${c.avgDaysToConvert??'–'}</td><td class="r">${money(c.revenue.CAD.total,'CAD')}</td><td class="r">${money(c.revenue.EUR.total,'EUR')}</td></tr>`).join('')}</table></div>`)}
+  ${card('Campaign performance',`<div class="scroll"><table><tr><th>Campaign</th><th class="r">Leads</th><th class="r">Signed</th><th class="r">Rate</th><th class="r">Lost</th><th class="r">Days to sign</th><th class="r">CAD</th><th class="r">EUR</th></tr>${d.campaigns.map(c=>`<tr><td>${esc(c.name)}</td><td class="r">${n0(c.total)}${pc?`<div class="sub">${gcell(c.total,(pc.get(c.name)||{}).total||0)}</div>`:''}</td><td class="r">${n0(c.converted)}</td><td class="r">${c.rate}%</td><td class="r">${n0(c.lost)}</td><td class="r">${c.avgDaysToConvert??'–'}</td><td class="r">${money(c.revenue.CAD.total,'CAD')}</td><td class="r">${money(c.revenue.EUR.total,'EUR')}</td></tr>`).join('')}</table></div>`)}
   ${card('Lost leads: source × reason',heat(d.lostHeatmap,'Source'))}
   ${card('Salesperson × source (all leads)',heat(d.salespersonSource,'Salesperson'))}
   ${card('Salesperson × source (converted)',heat(d.salespersonSourceConverted,'Salesperson'))}</div>`;
@@ -275,7 +313,7 @@ R.leads=async el=>{
     fl.innerHTML=`<input id="lq" placeholder="Search name, email, phone, ID" value="${esc(F.q)}">`+sel('status','Status',fa.status)+sel('stage','Stage',fa.stage)+sel('year','Year',fa.year)+sel('source','Source',fa.source)+sel('referrer','Referred by',fa.referrer)+sel('sheet','Contract sheet',fa.sheet)+sel('user','Salesperson',fa.user)+sel('reason','Lost reason',fa.reason)+`<button id="lcsv">Export CSV</button>`;
     let tm;$('#lq').oninput=e=>{clearTimeout(tm);tm=setTimeout(()=>{F.q=e.target.value;F.page=1;R.leads(el)},300)};
     fl.querySelectorAll('select').forEach(s=>s.onchange=e=>{F[e.target.dataset.k]=e.target.value;F.page=1;R.leads(el)});
-    $('#lcsv').onclick=()=>{const p=new URLSearchParams(F);p.delete('page');p.set('scope',scope);location.href='/api/leads.csv?'+p};
+    $('#lcsv').onclick=()=>{const p=new URLSearchParams(F);p.delete('page');p.set('scope',scope);const w=periodDates();if(w){p.set('from',w[0]);p.set('to',w[1])}location.href='/api/leads.csv?'+p};
   }
   $('#lsum').textContent=`${n0(r.total)} leads match · ${n0(r.summary.converted)} converted · ${n0(r.summary.lost)} lost · ${n0(r.summary.open)} open`;
   const th=(k,l,c='')=>`<th class="${c}" data-s="${k}" style="cursor:pointer">${l}${F.sort===k?(F.dir==='asc'?' ▲':' ▼'):''}</th>`;
@@ -330,7 +368,7 @@ $('#refresh').onclick=async()=>{const b=$('#refresh');b.disabled=true;b.textCont
   b.disabled=false;b.textContent='Refresh from Odoo'};
 function banner(){const b=$('#banner');
   b.style.display=scope==='native'?'none':'block';
-  b.textContent=scope==='historical'?'Historical only: imported records with unknown dates and outcomes. Rates, revenue and lost analysis are intentionally empty for them.':'All leads: historical imports are included in totals but never counted as lost, signed or revenue. In time charts they use their Created at date.'}
+  b.textContent=scope==='historical'?'Historical only: imported cards (lost reason Historical, and the 2026-09-25 sheet import), dated by Created at. Signings come from the contract sheets; they are never counted as lost.':'All leads: native Odoo cards (Created on) plus imported cards (Created at). Imported cards are never counted as lost; their signings come from the contract sheets.'}
 $('#scope').value=scope;banner();
 $('#scope').onchange=e=>{scope=e.target.value;try{localStorage.setItem('scope',scope)}catch(x){}banner();
   Object.keys(store).forEach(k=>delete store[k]);document.querySelectorAll('section').forEach(s=>{s.innerHTML='';delete s.dataset.init});F.page=1;show(current)};
@@ -338,6 +376,7 @@ function setTheme(t){document.documentElement.dataset.theme=t;try{localStorage.s
 $('#theme').onclick=()=>{setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');if(current!=='leads')show(current)};
 let saved=null;try{saved=localStorage.getItem('theme')}catch(e){}
 setTheme(saved||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+renderPbar();
 status();
 show(TABS.some(t=>t[0]===location.hash.slice(1))?location.hash.slice(1):'overview');
 </script>

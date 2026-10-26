@@ -122,6 +122,15 @@ Working notes so a new session can pick up where the last one stopped.
 - Contracts tab "signed from Nov 2024" (277) counts contracts by signing date; conversion figures count leads by
   their own date, so a pre-native lead signed in 2025 is a historical conversion.
 
+## Global date window (2026-10-26)
+- A bar under the tabs (3d / 7d / 2w / 1m / 3m / 6m / 1y / All time / Custom) applies to every tab. Leads are filtered
+  by lead date (Created on; Created at for imported cards). With a window, every endpoint also returns `_prev` (the
+  window of the same length just before) and `_window`; the UI shows growth % on KPIs and growth tables.
+  Contracts / Revenue check: by signing date. Retargeting: by draft/contract issue date. All Leads + CSVs: filtered.
+- Overview: the "What happened in Odoo" block follows the bar (All time -> last 30 days there); the lower section
+  is the selected period (KPIs, leads per day/week/month, this period vs previous).
+- Leads in the last 30 days: 1,298 vs 408 the 30 days before (+218%), mostly Instagram_ca (772 vs 209).
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).
