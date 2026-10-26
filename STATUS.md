@@ -109,15 +109,17 @@ Working notes so a new session can pick up where the last one stopped.
 - Overview starts with "What happened in Odoo": 3d / 7d / 2w / 1m / 3m / 6m / 1y / custom, New leads (created) or Stage
   moves (date_last_stage_update), by source / medium / campaign / salesperson / referred by, source and medium filters,
   each group compared with the previous window of the same length. `/api/period`, `bucketOf` in lib/analytics.js.
-- Stage groups (my mapping, owner to confirm): Pre meeting 0-1; Meeting set and done 2-4, 6-7; Pre contract 5, 8-12;
-  Contract sent 13-21 (incl. 20 Contract Signed / 21 Payment Receipt Sent, which are not Stage 22); Signed and paid =
-  Stage 22 or Won; Archive = any archived card that is not signed, plus 24 Canceled Contracts; extra groups shown only
-  when non-empty: Long-term follow-up (23), Other (TEST Column).
+- Stage groups (owner, 2026-10-26): Pre meeting 0, 1, 4 (No Show); Meeting set and done 2-3, 5-10; Pre contract
+  11 (Documents & Passport Received) to 12, plus 23 Long-term follow-up; Contract sent 13-19; Signed and paid = 20, 21,
+  22 or Won (20/21 now count as converted everywhere); Archive = archived and not signed, plus 24 Canceled Contracts.
 - Found a second import batch: 2026-09-25 00:00-03:00, 738 archived cards with fee source "Google Sheet" (contract
   records, mostly 2023-2024 Main Contract Sent / Draft Sent). Cards created more than a day after their contract was
   sent now sit at the contract date (685); before Nov 2024 they join the historical period (558). 83 signed native
   cards created after signing are placed at their signing date. Sep 2026 native leads: 1,492 -> 582.
-  ~150 cards of that batch have no contract date and still sit on 2026-09-25.
+  Owner: everything created 2026-09-25 is earlier leads (IMPORT_DAYS). Those cards have no Created at field (0 of 1,063)
+  and only contract dates, so: the client's original historical lead card represents the lead (batch card = duplicate);
+  otherwise the contract date; otherwise historical with no date (101). 9 signed cards with no date remain on that day.
+  "Stage moves" uses the re-dated contract date for imported cards (their stage date is the import day).
 
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run

@@ -122,7 +122,7 @@ async function renderPeriod(box){
   const q=new URLSearchParams({from,to,basis:P.basis,dim:P.dim,source:P.source,medium:P.medium});
   const d=await api('/api/period?'+q);
   const delta=(a,b)=>{if(!b)return a?'new vs 0 before':'–';const v=Math.round((a-b)/b*100);return `${v>0?'+':''}${v}% vs previous ${d.span} days (${n0(b)})`};
-  const shown=[...MAIN_B,...['Long-term follow-up','Other'].filter(b=>d.current[b]||d.previous[b])];
+  const shown=[...MAIN_B,...['Other'].filter(b=>d.current[b]||d.previous[b])];
   const opt=(k,label,opts,cur)=>`<select data-p="${k}"><option value="">${label}</option>${opts.map(o=>`<option ${cur===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
   box.innerHTML=`<div class="card" style="margin-bottom:14px"><h3>What happened in Odoo</h3>
    <div class="filters" style="align-items:center">${RANGES.map(([k,l])=>`<button data-r="${k}" class="${P.range===k?'on':''}" style="${P.range===k?'background:rgba(var(--accent-rgb),.14);color:var(--accent);font-weight:600':''}">${l}</button>`).join('')}
