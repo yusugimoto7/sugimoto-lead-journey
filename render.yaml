@@ -17,8 +17,6 @@ services:
         sync: false
       - key: ODOO_API_KEY
         sync: false
-      - key: CONTRACTS_PRIVATE_KEY
-        sync: false
       - key: DASHBOARD_USER
         value: sugimoto
       - key: DASHBOARD_PASSWORD

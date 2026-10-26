@@ -71,11 +71,11 @@ dl{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:0}dt{color:v
   <div class="warn" id="err"></div><div class="banner" id="banner"></div>
   <section id="t-overview"></section><section id="t-sources"></section><section id="t-journey"></section>
   <section id="t-segments"></section><section id="t-lost"></section><section id="t-sales"></section>
-  <section id="t-deep"></section><section id="t-contracts"></section><section id="t-leads"></section>
+  <section id="t-deep"></section><section id="t-contracts"></section><section id="t-revenue"></section><section id="t-retarget"></section><section id="t-leads"></section>
 </main>
 <dialog id="dlg"></dialog>
 <script>
-const TABS=[['overview','Overview'],['sources','Lead Sources'],['journey','Lead Journey'],['segments','Segments'],['lost','Lost Leads'],['sales','Sales Performance'],['deep','Deep Analysis'],['contracts','Contracts (sheets)'],['leads','All Leads']];
+const TABS=[['overview','Overview'],['sources','Lead Sources'],['journey','Lead Journey'],['segments','Segments'],['lost','Lost Leads'],['sales','Sales Performance'],['deep','Deep Analysis'],['contracts','Contracts'],['revenue','Revenue check'],['retarget','Retargeting'],['leads','All Leads']];
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const n0=v=>v==null?'–':Number(v).toLocaleString('en-US',{maximumFractionDigits:0});
@@ -153,24 +153,50 @@ R.segments=async el=>{
   mk('c-country',{type:'bar',data:{labels:c.map(x=>x.name),datasets:[{label:'Leads',data:c.map(x=>x.total),backgroundColor:col(0)}]},options:{indexAxis:'y',plugins:{legend:{display:false}}}});
 };
 
+const oLink=(odoo,id)=>id&&!String(id).startsWith('sheet:')?`<a href="${esc(odoo)}/web#id=${id}&model=crm.lead&view_type=form" target="_blank" rel="noopener" class="mono">${id}</a>`:'–';
+const tbl=(rows,cols,limit=500)=>rows.length?`<div class="scroll"><table><tr>${cols.map(x=>`<th class="${x[2]||''}">${x[0]}</th>`).join('')}</tr>${rows.slice(0,limit).map(r=>`<tr>${cols.map(x=>`<td class="${x[2]||''}">${x[1](r)}</td>`).join('')}</tr>`).join('')}</table></div>${rows.length>limit?`<div class="note">Showing ${limit} of ${n0(rows.length)}.</div>`:''}`:'<div class="note">None.</div>';
+const feedNote=c=>`<div class="note">Contracts read live from n8n (Finance "ALL Numbers" + SparkBridge "Customer Info"), joined to Odoo by contract number. Read ${esc(String(c.generatedAt||'').slice(0,16).replace('T',' '))}${c.live===false?` · <b>n8n unavailable (${esc(c.error||'')}), showing the last good read</b>`:''}.</div>`;
 R.contracts=async el=>{
   const c=await cached('contracts');
-  if(!c.available){el.innerHTML='<div class="note">No contract snapshot loaded. Upload contracts.json as a Render Secret File (see README), then refresh.</div>';return}
-  const link=id=>id&&!String(id).startsWith('sheet:')?`<a href="${esc(c.odoo_url)}/web#id=${id}&model=crm.lead&view_type=form" target="_blank" rel="noopener" class="mono">${id}</a>`:'–';
-  const tbl=(rows,cols)=>rows.length?`<div class="scroll"><table><tr>${cols.map(x=>`<th>${x[0]}</th>`).join('')}</tr>${rows.map(r=>`<tr>${cols.map(x=>`<td>${x[1](r)}</td>`).join('')}</tr>`).join('')}</table></div>`:'<div class="note">None.</div>';
+  if(!c.available){el.innerHTML='<div class="note">The contracts feed (n8n) could not be read yet. It is retried on every Odoo sync.</div>';return}
+  const link=id=>oLink(c.odoo_url,id);
   const C={id:['Odoo',r=>link(r.id)],name:['Lead',r=>esc(r.name||'–')],stage:['Stage',r=>esc(r.stage||'–')],user:['Salesperson',r=>esc(r.user||'–')],
     sheet:['Sheet status',r=>esc(r.sheetStatus||'–')],type:['Type',r=>esc(r.type||'–')],signed:['Signed',r=>`<span class="mono" style="white-space:nowrap">${esc(r.signed||'–')}</span>${r.dateFlags?`<div class="sub">${esc(r.dateFlags)}</div>`:''}`],
-    rows:['Sheet rows',r=>`<span class="sub">${esc(r.rows)}</span>`],card:['Odoo card',r=>r.id?(r.historical?'historical':'native'):'none']};
+    rows:['Contracts',r=>`<span class="sub">${esc(r.rows)}</span>`],card:['Odoo card',r=>r.id?(r.importedCard?'imported later':r.historical?'historical':'native'):'none'],
+    created:['Created',r=>`<span class="mono">${esc((r.created||'').slice(0,10))}</span>`]};
   const n=c.native,p=c.preNative,s=c.stage22;
-  el.innerHTML=`<div class="note">Snapshot of the SparkBridge and Finance contract sheets, built ${esc(c.generatedAt.slice(0,16).replace('T',' '))} UTC. Clients are matched to Odoo by email; a client in both sheets counts once. Signed = Signed And Paid, Only Signed, Signed &amp; Partially Paid, Only Paid, Partially Paid, Deposit payment, ProBono.</div>
-  <div class="grid kpis">${kpi('Signed clients in sheets',n0(c.clients.signed),`${n0(c.clients.terminated)} terminated`)}${kpi('Signed from Nov 2024',n0(n.signed),`${n0(n.confirmedStage22)} confirmed in Stage 22`)}${kpi('Signed before Nov 2024',n0(p.signed),'pre-CRM period, counted from the sheets')}${kpi('Stage 22 / Won confirmed',`${n0(s.confirmed)} / ${n0(s.total)}`,'signed cards in Odoo the sheets confirm')}</div>
-  <div class="grid two">${card('Signed clients by year (sheets)',canvas('c-cy'))}${card('Before Nov 2024: where the client sits in Odoo',`<div class="scroll"><table><tr><th>Odoo card</th><th class="r">Clients</th></tr><tr><td>Native card (created later)</td><td class="r">${n0(p.nativeCard)}</td></tr><tr><td>Historical card only</td><td class="r">${n0(p.historicalCardOnly)}</td></tr><tr><td>No card</td><td class="r">${n0(p.noCard)}</td></tr></table></div>`)}</div>
+  el.innerHTML=feedNote(c)+`
+  <div class="grid kpis">${kpi('Signed clients',n0(c.clients.signed),`${n0(c.clients.terminated)} terminated · ${n0(c.clients.rows)} contract rows`)}${kpi('Signed from Nov 2024',n0(n.signed),`${n0(n.confirmedStage22)} in Stage 22 or Won`)}${kpi('Signed before Nov 2024',n0(p.signed),'pre-CRM period')}${kpi('Stage 22 / Won confirmed',`${n0(s.confirmed)} / ${n0(s.total)}`,'signed cards the sheets confirm')}</div>
+  <div class="grid two">${card('Signed clients by year',canvas('c-cy'))}${card('Before Nov 2024: which Odoo card holds the contract',`<div class="scroll"><table><tr><th>Odoo card</th><th class="r">Clients</th></tr><tr><td>Imported later (Won etc.)</td><td class="r">${n0(p.importedCard)}</td></tr><tr><td>Native card</td><td class="r">${n0(p.nativeCard)}</td></tr><tr><td>Historical card</td><td class="r">${n0(p.historicalCardOnly)}</td></tr><tr><td>No card</td><td class="r">${n0(p.noCard)}</td></tr></table></div>`)}</div>
   ${card(`Signed from Nov 2024 but not in Stage 22 or Won (${n0(n.signedNotStage22.length)})`,tbl(n.signedNotStage22,[C.id,C.name,C.stage,C.user,C.sheet,C.type,C.signed,C.rows]))}
-  ${card(`Stage 22 or Won but the sheets say not signed (${n0(s.sheetSaysNot.length)})`,tbl(s.sheetSaysNot,[C.id,C.name,C.user,C.sheet,C.signed]))}
-  ${card(`Stage 22 or Won with no match in the sheets (${n0(s.notInSheets.length)})`,tbl(s.notInSheets,[C.id,C.name,C.user,C.created=['Created',r=>`<span class="mono">${esc((r.created||'').slice(0,10))}</span>`]]))}
-  ${card(`Signed from Nov 2024 with no Odoo card (${n0(n.signedNoCard.length)})`,tbl(n.signedNoCard,[C.sheet,C.type,C.signed,C.rows]))}
+  ${card(`Stage 22 or Won but the sheets say not signed (${n0(s.sheetSaysNot.length)})`,tbl(s.sheetSaysNot,[C.id,C.name,C.stage,C.user,C.sheet]))}
+  ${card(`Stage 22 or Won with no contract in the sheets (${n0(s.notInSheets.length)})`,tbl(s.notInSheets,[C.id,C.name,C.user,C.created]))}
+  ${card(`Signed with no Odoo card (${n0(n.signedNoCard.length+p.noCard)})`,tbl([...n.signedNoCard,...p.rows.filter(r=>!r.id)],[C.sheet,C.type,C.signed,C.rows]))}
   ${card(`Signed before Nov 2024 (${n0(p.rows.length)})`,tbl(p.rows,[C.id,C.card,C.name,C.stage,C.sheet,C.type,C.signed,C.rows]))}`;
   mk('c-cy',{type:'bar',data:{labels:c.signedByYear.map(x=>x.year),datasets:[{label:'Signed clients',data:c.signedByYear.map(x=>x.n),backgroundColor:col(0)}]},options:{plugins:{legend:{display:false}}}});
+};
+R.revenue=async el=>{
+  const c=await cached('revenue-check');
+  if(!c.available){el.innerHTML='<div class="note">The contracts feed (n8n) could not be read yet.</div>';return}
+  const t=c.tally,link=id=>oLink(c.odoo_url,id),cur=(v,k)=>v?(k==='EUR'?'€':'C$')+n0(v):'–';
+  const groups={};c.issues.forEach(i=>{(groups[i.problem]=groups[i.problem]||[]).push(i)});
+  const I=[['Contract',r=>`${esc(r.company==='SG'?'Finance':'SparkBridge')} <span class="mono">${esc(r.no||'')}</span><div class="sub">row ${r.row}</div>`],['Odoo',r=>link(r.id)],['Lead',r=>esc(r.name||'–')],['Type',r=>esc(r.type||'–')],['Signed',r=>`<span class="mono">${esc(r.signed||'–')}</span>`],['Sheet',r=>`${cur(r.sheetFee,r.currency)}<div class="sub">${esc(r.sheetColumns)}</div>`],['Odoo fee',r=>cur(r.odooFee,r.currency),'r']];
+  el.innerHTML=feedNote(c)+`<div class="note">${esc(c.note)}</div>
+  <div class="grid kpis">${kpi('Signed contracts checked',n0(t.checked))}${kpi('Odoo = sheet',n0(t.match),`${Math.round(t.match/Math.max(1,t.checked)*100)}%`)}${kpi('Odoo ≠ sheet',n0(t.mismatch))}${kpi('No fee anywhere',n0(t.zeroEverywhere),`${n0(t.unreadableFee)} fee cells are #N/A`)}</div>
+  ${card('Contract value by signing year: sheets vs Odoo vs what the Sales tab shows today',tbl(c.totals,[['Year',r=>esc(r.year)],['Company',r=>esc(r.company==='SG'?'Sugimoto (Finance)':r.company==='SB'?'SparkBridge':r.company)],['Currency',r=>esc(r.currency)],['Contracts',r=>n0(r.contracts),'r'],['Sheets',r=>n0(r.sheet),'r'],['Odoo fee fields',r=>n0(r.odoo),'r'],['Sales tab today',r=>r.dashboard?n0(r.dashboard):'–','r']]))}
+  ${Object.entries(groups).map(([k,rows])=>card(`${esc(k)} (${n0(rows.length)})`,tbl(rows,I))).join('')}
+  ${card(`Unusual fee for the contract type (${n0(c.outliers.length)})`,tbl(c.outliers,[['Contract',r=>`${esc(r.company==='SG'?'Finance':'SparkBridge')} <span class="mono">${esc(r.no||'')}</span> · row ${r.row}`],['Odoo',r=>link(r.id)],['Type',r=>esc(r.type||'–')],['Fee',r=>cur(r.fee,r.currency),'r'],['Type median',r=>cur(r.typeMedian,r.currency),'r']]))}`;
+};
+const RT={step:'',user:'',status:''};
+R.retarget=async el=>{
+  const c=await cached('retargeting');
+  const rows=c.rows.filter(r=>(!RT.step||r.stepLabel===RT.step)&&(!RT.user||(r.user||'(none)')===RT.user)&&(!RT.status||r.status===RT.status));
+  const sel=(k,l,opts)=>`<select data-k="${k}"><option value="">${l}</option>${opts.map(o=>`<option ${RT[k]===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+  el.innerHTML=`<div class="note">People who received a draft or the main contract and never signed, one row per person (a person who signed on any card is left out). Draft sent first, newest first. Draft date = contract issued date in the sheets, else Odoo "Contract sent on".</div>
+  <div class="grid kpis">${Object.entries(c.byStep).map(([k,v])=>kpi(k,n0(v))).join('')}${kpi('Still open in Odoo',n0(c.byStatus.Open||0),`${n0(c.byStatus['Archived (no reason)']||0)} archived · ${n0(c.byStatus.Lost||0)} lost`)}</div>
+  <div class="filters">${sel('step','Step',Object.keys(c.byStep))}${sel('user','Salesperson',Object.keys(c.bySalesperson).sort())}${sel('status','Odoo status',Object.keys(c.byStatus))}<button onclick="location.href='/api/retargeting.csv'">Export CSV (all)</button></div>
+  ${card(`List (${n0(rows.length)})`,tbl(rows,[['Step',r=>esc(r.stepLabel)],['Draft date',r=>`<span class="mono">${esc(r.draftOn||'–')}</span>`],['Odoo',r=>oLink(c.odoo_url,r.id)],['Lead',r=>`${esc(r.name)}<div class="sub">${esc(r.partner||'')}</div>`],['Contact',r=>`<span class="sub">${esc(r.email||'')}<br>${esc(r.phone||'')}</span>`],['Salesperson',r=>esc(r.user||'–')],['Stage / status',r=>`${esc(r.stage)}<div class="sub">${esc(r.status)}${r.lostReason?' · '+esc(r.lostReason):''}</div>`],['Contract',r=>`${esc(r.contractType||'–')}<div class="sub">${r.fee?(r.currency==='EUR'?'€':'C$')+n0(r.fee):''}</div>`]],300))}`;
+  el.querySelectorAll('select').forEach(x=>x.onchange=e=>{RT[e.target.dataset.k]=e.target.value;R.retarget(el)});
 };
 R.lost=async el=>{
   const l=await cached('lost');
@@ -229,7 +255,7 @@ R.leads=async el=>{
   $('#pp').onclick=()=>{F.page=r.page-1;R.leads(el)};$('#pn').onclick=()=>{F.page=r.page+1;R.leads(el)};
 };
 function detail(l,odoo){
-  const rows=[['ID',l.id],['Lead',l.name],['Company / name',l.partner],['Email',l.email],['Phone',l.phone],['Country',l.country],['Status',l.status],['Stage',l.stage],['Phase',l.phase],['Probability',l.probability!=null?l.probability+'%':''],['Salesperson',l.user],['Referred by',l.refUser],['Source',l.source],['Medium',l.medium],['Campaign',l.campaign],['Lost reason',l.lostReason],['Contract type',l.contractType],['Contract value',l.contractValue&&l.currency?money(l.contractValue,l.currency):l.contractValue],['Counted in revenue',l.revenueCounted?'Yes':'No'],['Contract sheet',l.sheet?`${l.sheet.status||l.sheet.outcome} · signed ${l.sheet.signed||'–'} · ${l.sheet.sheets.join(' + ')}`:'not in sheets'],['Budget',l.seg.budget],['Immigration path',l.seg.immigration],['Destination',l.seg.destination],['Created',l.created||(l.historical?'unknown (historical)':'')],['Imported at',l.importedAt],['Last updated',l.updated],['Closed',l.closed],['Notes',l.notes]];
+  const rows=[['ID',l.id],['Lead',l.name],['Company / name',l.partner],['Email',l.email],['Phone',l.phone],['Country',l.country],['Status',l.status],['Stage',l.stage],['Phase',l.phase],['Probability',l.probability!=null?l.probability+'%':''],['Salesperson',l.user],['Referred by',l.refUser],['Source',l.source],['Medium',l.medium],['Campaign',l.campaign],['Lost reason',l.lostReason],['Contract type',l.contractType],['Contract value',l.contractValue&&l.currency?money(l.contractValue,l.currency):l.contractValue],['Counted in revenue',l.revenueCounted?'Yes':'No'],['Contract sheet',l.sheet?`${l.sheet.status||l.sheet.outcome} · signed ${l.sheet.signed||'–'} · ${(l.sheet.contracts||[]).join(', ')}`:'not in sheets'],['Budget',l.seg.budget],['Immigration path',l.seg.immigration],['Destination',l.seg.destination],['Created',l.created||(l.historical?'unknown (historical)':'')],['Imported at',l.importedAt],['Last updated',l.updated],['Closed',l.closed],['Notes',l.notes]];
   $('#dlg').innerHTML=`<dl>${rows.filter(r=>r[1]!==''&&r[1]!=null).map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between">${String(l.id).startsWith('sheet:')?'<span class="sub">Only in the contract sheets</span>':`<a href="${esc(odoo)}/web#id=${l.id}&model=crm.lead&view_type=form" target="_blank" rel="noopener">Open in Odoo</a>`}<button onclick="document.getElementById('dlg').close()">Close</button></div>`;
   $('#dlg').showModal();
 }

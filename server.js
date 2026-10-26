@@ -54,7 +54,7 @@ app.get('/api/status', (_req, res) => {
       .map(([name, leads]) => ({ name, leads })).sort((a, b) => b.leads - a.leads) : null,
     lost_reasons: d ? Object.entries(d.leads.reduce((m, l) => { if (l.lostReason) m[l.lostReason] = (m[l.lostReason] || 0) + 1; return m; }, {}))
       .map(([name, leads]) => ({ name, leads })).sort((a, b) => b.leads - a.leads) : null,
-    contract_snapshot: d && d.sheet ? { built: d.sheet.generatedAt, clients: d.sheet.clients.length } : null,
+    contracts_feed: d && d.sheet ? { read_at: d.sheet.generatedAt, live: d.sheet.live, error: d.sheet.error, rows: d.sheet.rows.length } : null,
     last_sync: d ? new Date(d.fetchedAt).toISOString() : null,
     cache_age_seconds: d ? Math.round((Date.now() - d.fetchedAt) / 1000) : null,
     cache_ttl_seconds: CACHE_MS / 1000,
@@ -82,6 +82,17 @@ app.get('/api/sales', route((d) => A.sales(d.leads, d.det)));
 app.get('/api/deep', route((d) => A.deep(d.leads)));
 app.get('/api/diagnostics', route((d) => A.diagnostics(d.all, d.det)));
 app.get('/api/contracts', route((d) => ({ ...A.contracts(d.all, d.sheet), odoo_url: baseUrl() })));
+app.get('/api/revenue-check', route((d) => ({ ...A.revenueCheck(d.all, d.sheet), odoo_url: baseUrl() })));
+app.get('/api/retargeting', route((d) => ({ ...A.retargeting(d.all), odoo_url: baseUrl() })));
+const RT_COLS = ['stepLabel', 'draftOn', 'name', 'partner', 'email', 'phone', 'user', 'stage', 'status', 'lostReason', 'contractType', 'fee', 'currency', 'source', 'created', 'updated', 'id'];
+app.get('/api/retargeting.csv', (req, res) => {
+  const d = current();
+  if (!d) return notReady(res);
+  const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const rows = A.retargeting(d.leads).rows;
+  const csv = [RT_COLS.join(','), ...rows.map((r) => RT_COLS.map((c) => esc(r[c])).join(','))].join('\n');
+  res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="retargeting-drafts.csv"' }).send('\ufeff' + csv);
+});
 app.get('/api/segments', route((d) => A.segments(d.leads, d.det)));
 
 // Full lead explorer: server-side filter / sort / paging

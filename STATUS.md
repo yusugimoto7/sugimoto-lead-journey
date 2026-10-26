@@ -86,6 +86,25 @@ Working notes so a new session can pick up where the last one stopped.
   26 clients have more than one Stage 22 card (35 extra), still counted per card.
   Revenue logic unchanged; pre-CRM cards are excluded from revenue.
 
+## Contracts from n8n (2026-10-26, replaces the encrypted snapshot)
+- Owner pointed to the Contracts Dashboard (leads-dashboard-icz4.onrender.com/contracts). Its live data comes from the
+  n8n webhook /webhook/contracts-dashboard (sg = Finance rows, sb = SparkBridge rows, crm = Odoo export). Public, no auth;
+  owner: no password needed. Our server reads it on each sync; join by contract number. CONTRACTS_PRIVATE_KEY and
+  data/contracts.enc are gone; the key can be deleted from Render.
+- SparkBridge master = the n8n one (1OmpjhgiLAgFeVGFa1ta6W1Qzk1Auoe46EhBiOt6bnT8), owner-confirmed.
+- n8n (Heroku) returned 503 "Application Error" on 2026-10-26 after two reads; the loader retries once and keeps the
+  last good read. Its dates are display text: asking for unformatted/serial values in the n8n Sheets node would remove
+  the remaining ambiguity (793 of 1,851 rows carry a flagged date; Odoo ISO dates are used where the card has them).
+- Results (n8n read 2026-10-26 12:57): 566 signed clients; from Nov 2024 277 (252 in Stage 22/Won, 25 on other stages);
+  before Nov 2024 289 (251 on cards imported later). Stage 22/Won cards 578: 503 confirmed, 69 sheet says not signed,
+  6 not in sheets. Conversions: native 326 / 18,182 = 1.8%; historical 243 / 27,427 (2022: 9, 2023: 76, 2024: 158).
+- Revenue check: 577 signed contracts; Odoo fee = sheet on 440, differs on 47 (all Finance), 88 no fee anywhere,
+  75 fee cells #N/A. Contract value per year (sheets): SparkBridge CAD 2023 1.49M, 2024 3.90M, 2025 3.75M (SUV fees
+  50k-130k each); Sugimoto CAD 2023 67k, 2024 214k, 2025 202k. The Sales tab (x_studio_contract_value) shows
+  2024 604k / 2025 2.04M CAD: wrong field, mixes companies. Fees are contract values, not payments received.
+- Retargeting tab: 1,035 people who got a draft (319) or main contract (716) and never signed, deduped by email,
+  CSV export. Draft sent listed first (owner priority).
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).
