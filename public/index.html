@@ -193,11 +193,17 @@ function dual(id,rows,limit=15){
 }
 R.sources=async el=>{
   const s=await cached('sources'),p=s._prev;
-  const ex=[['Converted',r=>n0(r.converted)],['Rate',r=>r.rate+'%']];
-  el.innerHTML=`<div class="grid">${card('By source (top 15)',canvas('c-src'))}${card('By medium',canvas('c-med'))}${card('By campaign (top 15)',canvas('c-cam'))}${card('Referred by: influencer page / partner (top 15)',canvas('c-ref'))}</div>
-  <div class="note">Bars = lead volume, line = conversion rate (signed / leads). Odoo's UTM model has no separate "content" dimension, so campaign is shown as the third cut.</div>
-  <div class="grid two">${card('Sources: growth',growthTable(s.source,p&&p.source,'Source',{extra:ex,limit:20}))}${card('Mediums: growth',growthTable(s.medium,p&&p.medium,'Medium',{extra:ex,limit:20}))}${card('Campaigns: growth',growthTable(s.campaign,p&&p.campaign,'Campaign',{extra:ex,limit:20}))}${card('Referred by: growth',growthTable(s.referrer.filter(r=>r.name!==null&&r.name!=='(none)'),p&&p.referrer,'Referred by',{extra:ex,limit:20}))}</div>`;
-  dual('c-src',s.source);dual('c-med',s.medium);dual('c-cam',s.campaign);dual('c-ref',s.referrer.filter(r=>r.name!==null&&r.name!=='(none)'));
+  const ref=a=>(a||[]).filter(r=>r.name!==null&&r.name!=='(none)');
+  // One chart (top sources); everything else as tables with the previous period and growth.
+  const ex=(prev)=>{const pm=prev?byName(prev):null;return [['Signed',r=>n0(r.converted)],...(pm?[['Signed before',r=>n0((pm.get(r.name)||{}).converted||0)]]:[]),['Rate',r=>r.rate+'%'],['Lost',r=>n0(r.lost)],['Open',r=>n0(r.open)]]};
+  const t=(title,cur,prev,label)=>card(`${title} (${n0(cur.length)})`,growthTable(cur,prev,label,{limit:60,extra:ex(prev)}));
+  el.innerHTML=`${card('Top sources: leads and conversion rate',canvas('c-src'))}
+  <div class="note">Signed = Stage 20-22 or Won. Rate = signed / leads of the period. Odoo's UTM model has no separate "content" dimension, so campaign is the third cut.</div>
+  ${t('Sources',s.source,p&&p.source,'Source')}
+  ${t('Mediums',s.medium,p&&p.medium,'Medium')}
+  ${t('Campaigns',s.campaign,p&&p.campaign,'Campaign')}
+  ${t('Referred by: influencer page / partner',ref(s.referrer),p&&ref(p.referrer),'Referred by')}`;
+  dual('c-src',s.source);
 };
 
 R.journey=async el=>{
