@@ -131,6 +131,16 @@ Working notes so a new session can pick up where the last one stopped.
   is the selected period (KPIs, leads per day/week/month, this period vs previous).
 - Leads in the last 30 days: 1,298 vs 408 the 30 days before (+218%), mostly Instagram_ca (772 vs 209).
 
+## Budget tiers and table totals (2026-10-26)
+- Owner's tiers (can the lead afford to start a process): Tier 1 under 2B toman / under 10k CAD-EUR; Tier 2 2-4B /
+  10-20k; Tier 3 4-6B / 20-40k; Tier 4 over 6B / 40-100k; Tier 5 over 100k. EUR answers follow the CAD bands (my call;
+  the owner's card listed EUR only up to Tier 3). From x_budget; historical cards without it use the old form answer
+  only when wholly under 2B toman, else Unscored. `budgetTier` on each lead; Segments "Budget mix", Overview
+  "By budget tier", Retargeting budget column/filter, CSVs.
+- All native leads: Tier 1 8,125 (46.7%, 0.4% signed), Tier 2 5,487 (2.8%), Tier 3 2,212 (2.2%), Tier 4 1,248 (1.7%),
+  Tier 5 57 (0%). Historical: 7,565 Unscored (old answers like "20,000-50,000" that cross tiers).
+- Every growth table ends with a Total row over all rows (rate recomputed).
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).

@@ -106,7 +106,7 @@ app.get('/api/diagnostics', route((d) => A.diagnostics(d.all, d.det), { prev: fa
 app.get('/api/contracts', route((d) => ({ ...A.contracts(d.all, d.sheet, d.win), odoo_url: baseUrl() })));
 app.get('/api/revenue-check', route((d) => ({ ...A.revenueCheck(d.all, d.sheet, d.win), odoo_url: baseUrl() })));
 app.get('/api/retargeting', route((d) => ({ ...A.retargeting(d.all, d.win), odoo_url: baseUrl() })));
-const RT_COLS = ['stepLabel', 'draftOn', 'name', 'partner', 'email', 'phone', 'user', 'stage', 'status', 'lostReason', 'contractType', 'fee', 'currency', 'source', 'created', 'updated', 'id'];
+const RT_COLS = ['stepLabel', 'draftOn', 'name', 'partner', 'email', 'phone', 'user', 'stage', 'status', 'lostReason', 'budgetTier', 'contractType', 'fee', 'currency', 'source', 'created', 'updated', 'id'];
 app.get('/api/retargeting.csv', (req, res) => {
   const d = current();
   if (!d) return notReady(res);
@@ -130,7 +130,7 @@ app.get('/api/leads', route((d, req) => {
 }, { prev: false }));
 
 const CSV_COLS = ['id', 'name', 'partner', 'email', 'phone', 'country', 'created', 'closed', 'status', 'stage', 'phase',
-  'historical', 'user', 'refUser', 'source', 'medium', 'campaign', 'lostReason', 'probability', 'contractType', 'contractValue', 'currency', 'sheetStatus', 'sheetSigned'];
+  'historical', 'user', 'refUser', 'source', 'medium', 'campaign', 'lostReason', 'probability', 'contractType', 'contractValue', 'currency', 'budgetTier', 'sheetStatus', 'sheetSigned'];
 app.get('/api/leads.csv', (req, res) => {
   const d = current();
   if (!d) return notReady(res);
