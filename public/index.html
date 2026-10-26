@@ -150,7 +150,7 @@ function renderPbar(){
   let prev='';if(w){const a=Date.parse(w[0]+'T00:00:00Z'),b=Date.parse(w[1]+'T00:00:00Z'),n=Math.round((b-a)/864e5)+1;prev=`compared with ${isoDay(new Date(a-n*864e5))} → ${isoDay(new Date(a-864e5))}`}
   $('#pbar').innerHTML=RANGES.map(([k,l])=>`<button data-r="${k}" class="${P.range===k?'on':''}">${l}</button>`).join('')+
     (P.range==='custom'?`<input type="date" id="pf" value="${esc(w?w[0]:'')}"> – <input type="date" id="pt" value="${esc(w?w[1]:'')}">`:'')+
-    `<span class="sub">${market?`<b>${esc(market)} only</b> · `:''}${w?`${w[0]} → ${w[1]} · ${prev}`:'All time, no comparison'} · by lead date (Created on; Created at for imported cards)</span>`;
+    `<span class="sub">${scope==='historical'&&w&&w[0]>='2024-11-01'?'<b class="down">Historical leads end in Oct 2024: this window is empty for them. Pick All time or switch Data scope.</b> · ':''}${market?`<b>${esc(market)} only</b> · `:''}${w?`${w[0]} → ${w[1]} · ${prev}`:'All time, no comparison'} · by lead date (Created on; Created at for imported cards)</span>`;
   const apply=()=>{try{localStorage.setItem('period',JSON.stringify(P))}catch(e){}renderPbar();document.querySelectorAll('section').forEach(x=>{if(x.id!=='t-'+current)x.innerHTML=''});show(current)};
   $('#pbar').querySelectorAll('button[data-r]').forEach(b=>b.onclick=()=>{const w0=periodDates();P.range=b.dataset.r;if(P.range==='custom'&&!(P.from&&P.to)){const d=w0||[isoDay(new Date(Date.now()-29*864e5)),isoDay(new Date())];P.from=d[0];P.to=d[1]}apply()});
   ['pf','pt'].forEach(id=>{const x=$('#'+id);if(x)x.onchange=()=>{P[id==='pf'?'from':'to']=x.value;if(P.from&&P.to&&P.from<=P.to)apply()}});
@@ -466,7 +466,7 @@ function banner(){const b=$('#banner');
   b.style.display=scope==='native'?'none':'block';
   b.textContent=scope==='historical'?'Historical only: imported cards (lost reason Historical, and the 2026-09-25 sheet import), dated by Created at. Signings come from the contract sheets; they are never counted as lost.':'All leads: native Odoo cards (Created on) plus imported cards (Created at). Imported cards are never counted as lost; their signings come from the contract sheets.'}
 $('#scope').value=scope;banner();
-$('#scope').onchange=e=>{scope=e.target.value;try{localStorage.setItem('scope',scope)}catch(x){}banner();
+$('#scope').onchange=e=>{scope=e.target.value;try{localStorage.setItem('scope',scope)}catch(x){}banner();renderPbar();
   Object.keys(store).forEach(k=>delete store[k]);document.querySelectorAll('section').forEach(s=>{s.innerHTML='';delete s.dataset.init});F.page=1;show(current)};
 function setTheme(t){document.documentElement.dataset.theme=t;try{localStorage.setItem('theme',t)}catch(e){}}
 $('#theme').onclick=()=>{setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');if(current!=='leads')show(current)};

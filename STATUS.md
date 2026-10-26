@@ -200,6 +200,12 @@ Working notes so a new session can pick up where the last one stopped.
   id `form:<row>`, stage "0- New Card (form, not in Odoo)", Pre meeting, Open, form date, source/medium/budget/path/
   destination/age from the form. Simulated: last 30 days 772 Odoo + 120 forms = 892. Live once n8n sends `forms`.
 
+## Render memory (2026-10-26)
+- A 502 on Render = the process was killed: RSS reached ~400 MB on the first sync and ~700 MB on the 30-minute
+  refresh (old + new data) on a 512 MB free instance. Fixed: pages are normalised as they arrive (raw records never
+  all in memory), notes cut to 600 chars, `cf` keeps only filled fields, `--max-old-space-size=360` in npm start.
+  Measured locally: first sync peak 240 MB, refresh peak 353 MB.
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).

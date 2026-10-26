@@ -6,7 +6,7 @@
   "private": true,
   "engines": { "node": ">=20" },
   "scripts": {
-    "start": "node server.js",
+    "start": "node --max-old-space-size=360 server.js",
     "fake-odoo": "node test/fake-odoo.js"
   },
   "dependencies": {
