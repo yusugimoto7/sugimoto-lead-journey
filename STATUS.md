@@ -141,6 +141,24 @@ Working notes so a new session can pick up where the last one stopped.
   Tier 5 57 (0%). Historical: 7,565 Unscored (old answers like "20,000-50,000" that cross tiers).
 - Every growth table ends with a Total row over all rows (rate recomputed).
 
+## Contracts, revenue, audience (2026-10-26, later)
+- Revenue basis = the contract sheets (owner: SUV amounts changed over time). Per signed card `sheetFees` (Finance:
+  Sugimoto professional Fee else Professional Fees; SparkBridge: Spark fee only). Sales tab revenue uses it.
+- Contracts tab (top): contracts issued in the window by category (mapping in `CATEGORIES`, lib/contracts.js) and type:
+  sent / drafts / main sent / signed / rate, median days lead->contract, contract->signed, lead->signed, signed value,
+  avg fee; by company, salesperson, sheet agent, lead source, budget tier; lead->signed spread; contract list + CSV.
+  Reconciliation moved into a collapsible section. Note: the Finance sheet's issue date often equals the signing date
+  (median contract->signed 0-11 days), so lead->contract is the more telling figure.
+- Retargeting: Audience section, every unsigned lead of the window cut by age band (x_age), card quality
+  (x_studio_quality), budget tier, the lead's path (x_studio_immigration_path) and "consultant's path"
+  (x_studio_immigration_path_1 / _2, staff selections; ASSUMPTION, owner to confirm; filled on <3%). CSV download.
+- Stage groups v2 (owner): Pre meeting 0, 00, 1, 2, 4; Meeting set and done 3, 5-10, 23; Documents received 11;
+  Contract sent 12-19; Signed = 20, 21, 22, 25, Won (25 Sent to Finance Unit is new; counted as signed, my call);
+  Archive = archived unsigned + 24.
+- 2026-09-25 cards in Odoo: the dashboard is read-only, so it cannot set lost reason / Created at. An import file was
+  prepared for the owner (1,050 rows: .id, proposed Created at = original historical card's Created at (350) or the
+  earliest contract date (602); 98 have no date; 164 have a contract dated on/after 2024-11-01 and are marked CHECK).
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).

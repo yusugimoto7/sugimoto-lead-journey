@@ -132,8 +132,8 @@ function heat(m,label){
 
 const R={};
 const RANGES=[['3d','3 days',3],['7d','7 days',7],['2w','2 weeks',14],['1m','1 month',30],['3m','3 months',91],['6m','6 months',182],['1y','1 year',365],['all','All time',0],['custom','Custom',0]];
-const BCOL={'Pre meeting':()=>col(0),'Meeting set and done':()=>col(1),'Pre contract':()=>col(4),'Contract sent':()=>col(3),'Signed and paid':()=>col(2),'Archive':()=>css('--mute'),'Long-term follow-up':()=>'#b9a66b','Other':()=>'#c9c8c0'};
-const MAIN_B=['Pre meeting','Meeting set and done','Pre contract','Contract sent','Signed and paid','Archive'];
+const BCOL={'Pre meeting':()=>col(0),'Meeting set and done':()=>col(1),'Documents received':()=>col(4),'Contract sent':()=>col(3),'Signed':()=>col(2),'Archive':()=>css('--mute'),'Other':()=>'#c9c8c0'};
+const MAIN_B=['Pre meeting','Meeting set and done','Documents received','Contract sent','Signed','Archive'];
 let P={range:'7d',from:'',to:'',basis:'created',dim:'source',source:'',medium:''};
 try{P=Object.assign(P,JSON.parse(localStorage.getItem('period')||'{}'))}catch(e){}
 const isoDay=d=>d.toISOString().slice(0,10);
@@ -205,7 +205,7 @@ R.sources=async el=>{
   const ex=(prev)=>[['Signed',r=>n0(r.converted)],...(prev?[['Signed before',r=>n0((r._prev||{}).converted||0)]]:[]),['Rate',r=>r.rate+'%'],['Lost',r=>n0(r.lost)],['Open',r=>n0(r.open)]];
   const t=(title,cur,prev,label)=>card(`${title} (${n0(cur.length)})`,growthTable(cur,prev,label,{limit:60,extra:ex(prev)}));
   el.innerHTML=`${card('Top sources: leads and conversion rate',canvas('c-src'))}
-  <div class="note">Signed = Stage 20-22 or Won. Rate = signed / leads of the period. Odoo's UTM model has no separate "content" dimension, so campaign is the third cut.</div>
+  <div class="note">Signed = Stage 20, 21, 22, 25 or Won. Rate = signed / leads of the period. Odoo's UTM model has no separate "content" dimension, so campaign is the third cut.</div>
   ${t('Sources',s.source,p&&p.source,'Source')}
   ${t('Mediums',s.medium,p&&p.medium,'Medium')}
   ${t('Campaigns',s.campaign,p&&p.campaign,'Campaign')}
@@ -238,7 +238,33 @@ R.segments=async el=>{
 const oLink=(odoo,id)=>id&&!String(id).startsWith('sheet:')?`<a href="${esc(odoo)}/web#id=${id}&model=crm.lead&view_type=form" target="_blank" rel="noopener" class="mono">${id}</a>`:'–';
 const tbl=(rows,cols,limit=500)=>rows.length?`<div class="scroll"><table><tr>${cols.map(x=>`<th class="${x[2]||''}">${x[0]}</th>`).join('')}</tr>${rows.slice(0,limit).map(r=>`<tr>${cols.map(x=>`<td class="${x[2]||''}">${x[1](r)}</td>`).join('')}</tr>`).join('')}</table></div>${rows.length>limit?`<div class="note">Showing ${limit} of ${n0(rows.length)}.</div>`:''}`:'<div class="note">None.</div>';
 const feedNote=c=>`<div class="note">Contracts read live from n8n (Finance "ALL Numbers" + SparkBridge "Customer Info"), joined to Odoo by contract number. Read ${esc(String(c.generatedAt||'').slice(0,16).replace('T',' '))}${c.live===false?` · <b>n8n unavailable (${esc(c.error||'')}), showing the last good read</b>`:''}.</div>`;
+const CS={category:'',step:''};
+const dd=v=>v==null?'–':n0(v)+' d';
 R.contracts=async el=>{
+  const c=await cached('contracts-sent'),q=c._prev&&c._prev.totals;
+  if(!c.available){el.innerHTML='<div class="note">The contracts feed (n8n) could not be read yet. It is retried on every Odoo sync.</div>';return}
+  const t=c.totals,link=id=>oLink(c.odoo_url,id),w=periodDates();
+  const g=k=>q?vs(t[k],q[k]):'';
+  const cols=[['Sent',r=>n0(r.sent)],['Drafts',r=>n0(r.drafts)],['Main sent',r=>n0(r.mainSent)],['Signed',r=>n0(r.signed)],['Rate',r=>r.rate+'%'],['Lead → contract',r=>dd(r.medLeadToSent)],['Contract → signed',r=>dd(r.medSentToSigned)],['Lead → signed',r=>dd(r.medLeadToSigned)],['Signed value',r=>[r.valueCAD?money(r.valueCAD,'CAD'):'',r.valueEUR?money(r.valueEUR,'EUR'):''].filter(Boolean).join(' + ')||'–'],['Avg fee',r=>r.avgFee?n0(r.avgFee):'–']];
+  const pc=c._prev?byName(c._prev.categories):null;
+  const catTable=`<div class="scroll"><table><tr><th>Category / type</th>${cols.map(x=>`<th class="r">${x[0]}</th>`).join('')}${pc?'<th class="r">Sent growth</th>':''}</tr>${c.categories.map(k=>`<tr style="font-weight:600"><td>${esc(k.name)}</td>${cols.map(x=>`<td class="r">${x[1](k)}</td>`).join('')}${pc?`<td class="r">${gcell(k.sent,(pc.get(k.name)||{}).sent||0)}</td>`:''}</tr>${k.types.map(y=>`<tr class="sub"><td style="padding-left:22px">${esc(y.name)}</td>${cols.map(x=>`<td class="r">${x[1](y)}</td>`).join('')}${pc?'<td></td>':''}</tr>`).join('')}`).join('')}<tr style="font-weight:600;border-top:2px solid var(--line)"><td>Total</td>${cols.map(x=>`<td class="r">${x[1](t)}</td>`).join('')}${pc?`<td class="r">${gcell(t.sent,q.sent)}</td>`:''}</tr></table></div>`;
+  const cut=(rows,label)=>`<div class="scroll"><table><tr><th>${label}</th>${cols.slice(0,8).map(x=>`<th class="r">${x[0]}</th>`).join('')}</tr>${rows.slice(0,25).map(r=>`<tr><td>${esc(r.name??'(none)')}</td>${cols.slice(0,8).map(x=>`<td class="r">${x[1](r)}</td>`).join('')}</tr>`).join('')}</table></div>`;
+  const list=c.rows.filter(r=>(!CS.category||r.category===CS.category)&&(!CS.step||r.step===CS.step));
+  const STEPL={draft_sent:'Draft sent',contract_sent:'Main contract sent',signed:'Signed',terminated:'Terminated',invoice_sent:'Invoice sent'};
+  const csv='/api/contracts-sent.csv'+(w?`?from=${w[0]}&to=${w[1]}`:'');
+  el.innerHTML=feedNote(c)+`<div class="note">${w?`Contracts issued ${esc(w[0])} → ${esc(w[1])}, compared with the window before. `:''}Lead → contract / signed = days from the lead's date (Created on; Created at for imported cards) to the contract's issue / signing date, as medians. Value = professional fees from the sheets on signed contracts.</div>
+  <div class="grid kpis">${kpi('Contracts sent',n0(t.sent),g('sent')||`${n0(t.drafts)} drafts · ${n0(t.mainSent)} main`)}${kpi('Signed',n0(t.signed),g('signed')||`${t.rate}% of sent`)}${kpi('Sign rate',t.rate+'%',q?`${q.rate}% the previous period`:'')}${kpi('Lead → contract',dd(t.medLeadToSent),q?`${dd(q.medLeadToSent)} the previous period`:'median')}${kpi('Contract → signed',dd(t.medSentToSigned),q?`${dd(q.medSentToSigned)} the previous period`:'median')}${kpi('Lead → signed',dd(t.medLeadToSigned),q?`${dd(q.medLeadToSigned)} the previous period`:'median')}${kpi('Signed value CAD',money(t.valueCAD,'CAD'),q?vs(t.valueCAD,q.valueCAD):'')}${kpi('Signed value EUR',money(t.valueEUR,'EUR'),q?vs(t.valueEUR,q.valueEUR):'')}</div>
+  ${card('Contracts by category and type',catTable)}
+  <div class="grid two">${card(`Lead → signed: how long it took (${n0(c.timedLeadToSigned)} of ${n0(c.signedCount)} signed have a lead date)`,canvas('c-l2s'))}${card('By company',cut(c.byCompany,'Company'))}</div>
+  <div class="grid two">${card('By salesperson (Odoo card)',cut(c.bySalesperson,'Salesperson'))}${card('By agent (sheet)',cut(c.byAgent,'Agent'))}</div>
+  <div class="grid two">${card('By lead source',cut(c.bySource,'Source'))}${card('By budget tier',cut(c.byBudget,'Budget tier'))}</div>
+  ${card(`Contract list (${n0(list.length)})`,`<div class="filters"><select data-c="category"><option value="">All categories</option>${c.categories.map(k=>`<option ${CS.category===k.name?'selected':''}>${esc(k.name)}</option>`).join('')}</select><select data-c="step"><option value="">All statuses</option>${Object.entries(STEPL).map(([k,v])=>`<option value="${k}" ${CS.step===k?'selected':''}>${v}</option>`).join('')}</select><button onclick="location.href='${csv}'">Export CSV</button></div>`+tbl(list,[['Issued',r=>`<span class="mono">${esc(r.issued||'–')}</span>`],['Category / type',r=>`${esc(r.category)}<div class="sub">${esc(r.type)}</div>`],['Contract',r=>`${esc(r.company==='SG'?'Finance':'SparkBridge')} <span class="mono">${esc(r.no||'')}</span>`],['Status',r=>esc(STEPL[r.step]||r.status)],['Signed',r=>`<span class="mono">${esc(r.signed||'–')}</span>`],['Odoo',r=>link(r.id)],['Lead',r=>`${esc(r.name||'–')}<div class="sub">${esc(r.user||'')}</div>`],['Lead → contract',r=>dd(r.leadToSent),'r'],['Lead → signed',r=>dd(r.leadToSigned),'r'],['Fee',r=>r.fee?(r.currency==='EUR'?'€':'C$')+n0(r.fee):'–','r']],300))}
+  <details class="card" style="margin-top:14px"><summary style="cursor:pointer;font-weight:600">Odoo vs sheets reconciliation</summary><div id="recon" style="margin-top:12px"></div></details>`;
+  mk('c-l2s',{type:'bar',data:{labels:c.leadToSigned.map(x=>x.name),datasets:[{label:'Signed contracts',data:c.leadToSigned.map(x=>x.n),backgroundColor:col(2)}]},options:{plugins:{legend:{display:false}}}});
+  el.querySelectorAll('select[data-c]').forEach(x=>x.onchange=e=>{CS[e.target.dataset.c]=e.target.value;R.contracts(el)});
+  el.querySelector('details').addEventListener('toggle',e=>{if(e.target.open&&!$('#recon').innerHTML)renderReconcile($('#recon'))},{once:false});
+};
+async function renderReconcile(el){
   const c=await cached('contracts');
   if(!c.available){el.innerHTML='<div class="note">The contracts feed (n8n) could not be read yet. It is retried on every Odoo sync.</div>';return}
   const link=id=>oLink(c.odoo_url,id);
@@ -248,7 +274,7 @@ R.contracts=async el=>{
     created:['Created',r=>`<span class="mono">${esc((r.created||'').slice(0,10))}</span>`]};
   const n=c.native,p=c.preNative,s=c.stage22,q=c._prev;
   el.innerHTML=feedNote(c)+(c._window?`<div class="note">Contracts signed ${esc(c._window.from)} → ${esc(c._window.to)}; signed Odoo cards created in that window.</div>`:'')+`
-  <div class="grid kpis">${kpi('Signed clients',n0(c.clients.signed),q?vs(c.clients.signed,q.clients.signed):`${n0(c.clients.terminated)} terminated · ${n0(c.clients.rows)} contract rows`)}${kpi('Signed from Nov 2024',n0(n.signed),(q?vs(n.signed,q.native.signed)+' · ':'')+`${n0(n.confirmedStage22)} in Stage 20-22 or Won`)}${kpi('Signed before Nov 2024',n0(p.signed),q?vs(p.signed,q.preNative.signed):'pre-CRM period')}${kpi('Signed cards confirmed',`${n0(s.confirmed)} / ${n0(s.total)}`,'Stage 20-22 / Won cards the sheets confirm')}</div>
+  <div class="grid kpis">${kpi('Signed clients',n0(c.clients.signed),q?vs(c.clients.signed,q.clients.signed):`${n0(c.clients.terminated)} terminated · ${n0(c.clients.rows)} contract rows`)}${kpi('Signed from Nov 2024',n0(n.signed),(q?vs(n.signed,q.native.signed)+' · ':'')+`${n0(n.confirmedStage22)} in Stage 20-22, 25 or Won`)}${kpi('Signed before Nov 2024',n0(p.signed),q?vs(p.signed,q.preNative.signed):'pre-CRM period')}${kpi('Signed cards confirmed',`${n0(s.confirmed)} / ${n0(s.total)}`,'Stage 20-22, 25 / Won cards the sheets confirm')}</div>
   <div class="grid two">${card('Signed clients by year',canvas('c-cy'))}${card('Before Nov 2024: which Odoo card holds the contract',`<div class="scroll"><table><tr><th>Odoo card</th><th class="r">Clients</th></tr><tr><td>Imported later (Won etc.)</td><td class="r">${n0(p.importedCard)}</td></tr><tr><td>Native card</td><td class="r">${n0(p.nativeCard)}</td></tr><tr><td>Historical card</td><td class="r">${n0(p.historicalCardOnly)}</td></tr><tr><td>No card</td><td class="r">${n0(p.noCard)}</td></tr></table></div>`)}</div>
   ${card(`Signed from Nov 2024 but not in Stage 22 or Won (${n0(n.signedNotStage22.length)})`,tbl(n.signedNotStage22,[C.id,C.name,C.stage,C.user,C.sheet,C.type,C.signed,C.rows]))}
   ${card(`Stage 22 or Won but the sheets say not signed (${n0(s.sheetSaysNot.length)})`,tbl(s.sheetSaysNot,[C.id,C.name,C.stage,C.user,C.sheet]))}
@@ -256,7 +282,7 @@ R.contracts=async el=>{
   ${card(`Signed with no Odoo card (${n0(n.signedNoCard.length+p.noCard)})`,tbl([...n.signedNoCard,...p.rows.filter(r=>!r.id)],[C.sheet,C.type,C.signed,C.rows]))}
   ${card(`Signed before Nov 2024 (${n0(p.rows.length)})`,tbl(p.rows,[C.id,C.card,C.name,C.stage,C.sheet,C.type,C.signed,C.rows]))}`;
   mk('c-cy',{type:'bar',data:{labels:c.signedByYear.map(x=>x.year),datasets:[{label:'Signed clients',data:c.signedByYear.map(x=>x.n),backgroundColor:col(0)}]},options:{plugins:{legend:{display:false}}}});
-};
+}
 R.revenue=async el=>{
   const c=await cached('revenue-check');
   if(!c.available){el.innerHTML='<div class="note">The contracts feed (n8n) could not be read yet.</div>';return}
@@ -275,12 +301,32 @@ R.retarget=async el=>{
   const c=await cached('retargeting'),q=c._prev,pw=periodDates(),csvHref='/api/retargeting.csv'+(pw?`?from=${pw[0]}&to=${pw[1]}`:'');
   const rows=c.rows.filter(r=>(!RT.step||r.stepLabel===RT.step)&&(!RT.user||(r.user||'(none)')===RT.user)&&(!RT.status||r.status===RT.status)&&(!RT.budget||r.budgetTier===RT.budget));
   const sel=(k,l,opts)=>`<select data-k="${k}"><option value="">${l}</option>${opts.map(o=>`<option ${RT[k]===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
-  el.innerHTML=`<div class="note">${c._window?`Draft or main contract issued ${esc(c._window.from)} → ${esc(c._window.to)}. `:''}People who received a draft or the main contract and never signed, one row per person (a person who signed on any card is left out). Draft sent first, newest first. Draft date = contract issued date in the sheets, else Odoo "Contract sent on".</div>
+  el.innerHTML=`<div class="note">${c._window?`Draft or main contract issued ${esc(c._window.from)} → ${esc(c._window.to)}. `:''}<b>Drafts and main contracts.</b> People who received a draft or the main contract and never signed, one row per person (a person who signed on any card is left out). Draft sent first, newest first. Draft date = contract issued date in the sheets, else Odoo "Contract sent on".</div>
   <div class="grid kpis">${kpi('People to retarget',n0(c.total),q?vs(c.total,q.total):'')}${Object.entries(c.byStep).map(([k,v])=>kpi(k,n0(v),q?vs(v,q.byStep[k]||0):'')).join('')}${kpi('Still open in Odoo',n0(c.byStatus.Open||0),`${n0(c.byStatus['Archived (no reason)']||0)} archived · ${n0(c.byStatus.Lost||0)} lost`)}</div>
   <div class="filters">${sel('step','Step',Object.keys(c.byStep))}${sel('user','Salesperson',Object.keys(c.bySalesperson).sort())}${sel('status','Odoo status',Object.keys(c.byStatus))}${sel('budget','Budget tier',Object.keys(c.byBudget).sort())}<button onclick="location.href='${csvHref}'">Export CSV</button></div>
   ${card(`List (${n0(rows.length)})`,tbl(rows,[['Step',r=>esc(r.stepLabel)],['Draft date',r=>`<span class="mono">${esc(r.draftOn||'–')}</span>`],['Odoo',r=>oLink(c.odoo_url,r.id)],['Lead',r=>`${esc(r.name)}<div class="sub">${esc(r.partner||'')}</div>`],['Contact',r=>`<span class="sub">${esc(r.email||'')}<br>${esc(r.phone||'')}</span>`],['Salesperson',r=>esc(r.user||'–')],['Stage / status',r=>`${esc(r.stage)}<div class="sub">${esc(r.status)}${r.lostReason?' · '+esc(r.lostReason):''}</div>`],['Budget',r=>esc(r.budgetTier||'–')],['Contract',r=>`${esc(r.contractType||'–')}<div class="sub">${r.fee?(r.currency==='EUR'?'€':'C$')+n0(r.fee):''}</div>`]],300))}`;
-  el.querySelectorAll('select').forEach(x=>x.onchange=e=>{RT[e.target.dataset.k]=e.target.value;R.retarget(el)});
+  el.querySelectorAll('select[data-k]').forEach(x=>x.onchange=e=>{RT[e.target.dataset.k]=e.target.value;R.retarget(el)});
+  el.insertAdjacentHTML('beforeend','<div id="aud" style="margin-top:18px"></div>');
+  await renderAudience($('#aud'));
 };
+// Audience: every unsigned lead of the period, cut by age, card quality, budget, the lead's path and the consultant's.
+const AU={age:'',quality:'',budget:'',path:'',advisor:'',status:''};
+const AUL={age:'Age',quality:'Card quality',budget:'Budget tier',path:'Immigration path (lead)',advisor:"Consultant's path",status:'Odoo status'};
+async function renderAudience(box){
+  const q=new URLSearchParams(Object.entries(AU).filter(([,v])=>v));
+  const a=await api('/api/audience?'+q);
+  const w=periodDates(),csvq=new URLSearchParams(q);if(w){csvq.set('from',w[0]);csvq.set('to',w[1])}csvq.set('scope',scope);
+  const sel=k=>`<select data-a="${k}"><option value="">${AUL[k]}: all</option>${a.cuts[k].map(o=>`<option value="${esc(o.name)}" ${AU[k]===o.name?'selected':''}>${esc(o.name)} (${n0(o.n)})</option>`).join('')}</select>`;
+  const cutCard=k=>card(AUL[k],`<div class="scroll"><table><tr><th>${AUL[k]}</th><th class="r">Leads</th></tr>${a.cuts[k].slice(0,15).map(o=>`<tr class="click" data-a="${k}" data-v="${esc(o.name)}" style="${AU[k]===o.name?'font-weight:600':''}"><td>${esc(o.name)}</td><td class="r">${n0(o.n)}</td></tr>`).join('')}</table></div>`);
+  box.innerHTML=`<h3 style="margin:0 0 6px">Audience: all leads that have not signed</h3><div class="note">Leads of the selected period (by lead date) that are not signed, whatever their stage. Each cut counts within the other filters; click a row to filter. Card quality = the Quality field; consultant's path = the Immigration Path selection staff set on the card (Canada / Europe).</div>
+  <div class="filters">${Object.keys(AUL).map(sel).join('')}<button id="au-clear">Clear</button><button onclick="location.href='/api/audience.csv?${csvq}'">Download CSV (${n0(a.total)})</button></div>
+  <div class="grid kpis">${kpi('Matching leads',n0(a.total),`of ${n0(a.pool)} unsigned leads in the period`)}</div>
+  <div class="grid two">${cutCard('age')}${cutCard('quality')}</div><div class="grid two">${cutCard('budget')}${cutCard('status')}</div><div class="grid two">${cutCard('path')}${cutCard('advisor')}</div>
+  ${card(`Leads (${n0(a.total)})`,tbl(a.rows,[['Odoo',r=>oLink(a.odoo_url,r.id)],['Lead',r=>`${esc(r.name)}<div class="sub">${esc(r.partner||'')}</div>`],['Contact',r=>`<span class="sub">${esc(r.email||'')}<br>${esc(r.phone||'')}</span>`],['Age',r=>r.age??'–','r'],['Quality',r=>esc(r.quality||'–')],['Budget',r=>esc(r.budgetTier||'–')],['Path',r=>`${esc(r.path||'–')}${r.advisorPath?`<div class="sub">consultant: ${esc(r.advisorPath)}</div>`:''}`],['Stage / status',r=>`${esc(r.stage)}<div class="sub">${esc(r.status)}</div>`],['Salesperson',r=>esc(r.user||'–')]],300))}`;
+  box.querySelectorAll('select[data-a]').forEach(x=>x.onchange=e=>{AU[e.target.dataset.a]=e.target.value;renderAudience(box)});
+  box.querySelectorAll('tr[data-a]').forEach(x=>x.onclick=()=>{const k=x.dataset.a,v=x.dataset.v;AU[k]=AU[k]===v?'':v;renderAudience(box)});
+  $('#au-clear').onclick=()=>{Object.keys(AU).forEach(k=>AU[k]='');renderAudience(box)};
+}
 R.lost=async el=>{
   const l=await cached('lost'),p=l._prev;
   el.innerHTML=`<div class="grid kpis">${kpi('Lost (with reason)',n0(l.total),p?vs(l.total,p.total):'')}${kpi('Archived, no reason',n0(l.archivedWithoutReason),p?vs(l.archivedWithoutReason,p.archivedWithoutReason):'not counted as lost')}</div>
@@ -292,9 +338,9 @@ R.lost=async el=>{
 R.sales=async el=>{
   const s=await cached('sales'),k=s.kpi,p=s._prev,pk=p&&p.kpi;
   const ps=p?byName(p.bySalesperson):null;
-  el.innerHTML=`<div class="grid kpis">${kpi('Signed (20-22, Won)',n0(k.signed),pk?vs(k.signed,pk.signed):'')}${kpi('Draft sent (13)',n0(k.draftSent),pk?vs(k.draftSent,pk.draftSent):'excluded from revenue')}${kpi('Main contract sent (18)',n0(k.mainContractSent),pk?vs(k.mainContractSent,pk.mainContractSent):'excluded from revenue')}${kpi('Revenue CAD',money(k.revenue.CAD.total,'CAD'),(pk?vs(k.revenue.CAD.total,pk.revenue.CAD.total)+' · ':'')+n0(k.revenue.CAD.contracts)+' contracts')}${kpi('Revenue EUR',money(k.revenue.EUR.total,'EUR'),(pk?vs(k.revenue.EUR.total,pk.revenue.EUR.total)+' · ':'')+n0(k.revenue.EUR.contracts)+' contracts')}</div>
-  <div class="note">Revenue here is still the old field (${esc(s.fields.contractValue)}); the Revenue check tab shows why it is not reliable yet. Leads and signings are counted by lead date.</div>
-  ${k.signedWithoutRevenue?`<div class="note">${k.signedWithoutRevenue} signed leads have no CA-/EU- contract type or no value and are not in revenue. Fields used: ${esc(s.fields.contractType)} / ${esc(s.fields.contractValue)}</div>`:''}
+  el.innerHTML=`<div class="grid kpis">${kpi('Signed (20-22, 25, Won)',n0(k.signed),pk?vs(k.signed,pk.signed):'')}${kpi('Draft sent (13)',n0(k.draftSent),pk?vs(k.draftSent,pk.draftSent):'excluded from revenue')}${kpi('Main contract sent (18)',n0(k.mainContractSent),pk?vs(k.mainContractSent,pk.mainContractSent):'excluded from revenue')}${kpi('Revenue CAD',money(k.revenue.CAD.total,'CAD'),(pk?vs(k.revenue.CAD.total,pk.revenue.CAD.total)+' · ':'')+n0(k.revenue.CAD.contracts)+' contracts')}${kpi('Revenue EUR',money(k.revenue.EUR.total,'EUR'),(pk?vs(k.revenue.EUR.total,pk.revenue.EUR.total)+' · ':'')+n0(k.revenue.EUR.contracts)+' contracts')}</div>
+  <div class="note">Revenue = contract value from the contract sheets on signed leads (owner: the sheets are the basis). Leads, signings and revenue are counted by lead date; the Contracts tab counts by contract date.</div>
+  ${k.signedWithoutRevenue?`<div class="note">${k.signedWithoutRevenue} signed leads have no contract value in the sheets (no matching contract or no fee).</div>`:''}
   <div class="grid two">${card('Contract types',growthTable(s.contractTypes,p&&p.contractTypes,'Type',{key:'type',val:'count',limit:30,extra:[['Revenue',t=>t.currency?money(t.revenue,t.currency):'–'],['Avg',t=>t.currency&&t.avgValue?money(t.avgValue,t.currency):'–']]}))}
   ${card('Salespeople',`<div class="scroll"><table><tr><th>Name</th><th class="r">Leads</th>${ps?'<th class="r">Growth</th>':''}<th class="r">Signed</th>${ps?'<th class="r">Before</th>':''}<th class="r">Rate</th><th class="r">CAD</th><th class="r">EUR</th></tr>${s.bySalesperson.map(x=>{const q=ps?ps.get(x.name)||{total:0,converted:0}:null;return `<tr><td>${esc(x.name)}</td><td class="r">${n0(x.total)}</td>${q?`<td class="r">${gcell(x.total,q.total)}</td>`:''}<td class="r">${n0(x.converted)}</td>${q?`<td class="r">${n0(q.converted)}</td>`:''}<td class="r">${x.rate}%</td><td class="r">${money(x.revenue.CAD.total,'CAD')}</td><td class="r">${money(x.revenue.EUR.total,'EUR')}</td></tr>`}).join('')}</table></div>`)}</div>`;
 };

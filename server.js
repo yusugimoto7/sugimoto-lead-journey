@@ -59,6 +59,7 @@ const route = (fn, { prev = true } = {}) => (req, res) => {
     if (s.win && prev && body && typeof body === 'object') {
       body._window = { from: s.win.from, to: s.win.to, span: s.win.span, prevFrom: s.win.prev.from, prevTo: s.win.prev.to };
       body._prev = fn({ ...s, leads: s.inScope.filter(inWin(s.win.prev)), win: s.win.prev }, req);
+      if (body._prev) { delete body._prev.rows; delete body._prev.issues; } // growth needs the aggregates only
     }
     res.json(body);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -105,6 +106,27 @@ app.get('/api/deep', route((d) => A.deep(d.leads)));
 app.get('/api/diagnostics', route((d) => A.diagnostics(d.all, d.det), { prev: false }));
 app.get('/api/contracts', route((d) => ({ ...A.contracts(d.all, d.sheet, d.win), odoo_url: baseUrl() })));
 app.get('/api/revenue-check', route((d) => ({ ...A.revenueCheck(d.all, d.sheet, d.win), odoo_url: baseUrl() })));
+app.get('/api/contracts-sent', route((d) => ({ ...A.contractsSent(d.all, d.sheet, d.win), odoo_url: baseUrl() })));
+app.get('/api/audience', route((d, req) => { const a = A.audience(d.leads, req.query); delete a.allRows; return { ...a, odoo_url: baseUrl() }; }, { prev: false }));
+const AUD_COLS = ['name', 'partner', 'email', 'phone', 'age', 'quality', 'budgetTier', 'path', 'advisorPath', 'stage', 'status', 'lostReason', 'user', 'source', 'created', 'id'];
+app.get('/api/audience.csv', (req, res) => {
+  const d = current();
+  if (!d) return notReady(res);
+  const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const rows = A.audience(scoped(d, req).leads, req.query).allRows.map(A.audienceRow);
+  const csv = [AUD_COLS.join(','), ...rows.map((r) => AUD_COLS.map((c) => esc(r[c])).join(','))].join('\n');
+  res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="audience.csv"' }).send('\ufeff' + csv);
+});
+const CS_COLS = ['category', 'type', 'company', 'no', 'status', 'issued', 'signed', 'leadDate', 'leadToSent', 'sentToSigned', 'leadToSigned', 'fee', 'currency', 'agent', 'user', 'source', 'budgetTier', 'name', 'id'];
+app.get('/api/contracts-sent.csv', (req, res) => {
+  const d = current();
+  if (!d) return notReady(res);
+  const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const r = A.contractsSent(d.leads, d.sheet, windowOf(req.query));
+  if (!r.available) return res.status(503).json({ error: 'contracts feed not loaded' });
+  const csv = [CS_COLS.join(','), ...r.rows.map((x) => CS_COLS.map((c) => esc(x[c])).join(','))].join('\n');
+  res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="contracts-sent.csv"' }).send('\ufeff' + csv);
+});
 app.get('/api/retargeting', route((d) => ({ ...A.retargeting(d.all, d.win), odoo_url: baseUrl() })));
 const RT_COLS = ['stepLabel', 'draftOn', 'name', 'partner', 'email', 'phone', 'user', 'stage', 'status', 'lostReason', 'budgetTier', 'contractType', 'fee', 'currency', 'source', 'created', 'updated', 'id'];
 app.get('/api/retargeting.csv', (req, res) => {
