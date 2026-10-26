@@ -270,7 +270,7 @@ R.segments=async el=>{
   await renderCompare($('#cmp'));
 };
 
-const oLink=(odoo,id)=>id&&!String(id).startsWith('sheet:')?`<a href="${esc(odoo)}/web#id=${id}&model=crm.lead&view_type=form" target="_blank" rel="noopener" class="mono">${id}</a>`:'–';
+const oLink=(odoo,id)=>id&&/^\d+$/.test(String(id))?`<a href="${esc(odoo)}/web#id=${id}&model=crm.lead&view_type=form" target="_blank" rel="noopener" class="mono">${id}</a>`:'–';
 const tbl=(rows,cols,limit=500)=>rows.length?`<div class="scroll"><table><tr>${cols.map(x=>`<th class="${x[2]||''}">${x[0]}</th>`).join('')}</tr>${rows.slice(0,limit).map(r=>`<tr>${cols.map(x=>`<td class="${x[2]||''}">${x[1](r)}</td>`).join('')}</tr>`).join('')}</table></div>${rows.length>limit?`<div class="note">Showing ${limit} of ${n0(rows.length)}.</div>`:''}`:'<div class="note">None.</div>';
 const feedNote=c=>`<div class="note">Contracts read live from n8n (Finance "ALL Numbers" + SparkBridge "Customer Info"), joined to Odoo by contract number. Read ${esc(String(c.generatedAt||'').slice(0,16).replace('T',' '))}${c.live===false?` · <b>n8n unavailable (${esc(c.error||'')}), showing the last good read</b>`:''}.</div>`;
 const CS={category:'',step:''};
@@ -422,7 +422,7 @@ R.leads=async el=>{
 };
 function detail(l,odoo){
   const rows=[['ID',l.id],['Lead',l.name],['Company / name',l.partner],['Email',l.email],['Phone',l.phone],['Country',l.country],['Status',l.status],['Stage',l.stage],['Phase',l.phase],['Probability',l.probability!=null?l.probability+'%':''],['Salesperson',l.user],['Referred by',l.refUser],['Source',l.source],['Medium',l.medium],['Campaign',l.campaign],['Lost reason',l.lostReason],['Contract type',l.contractType],['Contract value',l.contractValue&&l.currency?money(l.contractValue,l.currency):l.contractValue],['Counted in revenue',l.revenueCounted?'Yes':'No'],['Contract sheet',l.sheet?`${l.sheet.status||l.sheet.outcome} · signed ${l.sheet.signed||'–'} · ${(l.sheet.contracts||[]).join(', ')}`:'not in sheets'],['Budget',l.seg.budget],['Budget tier',l.budgetTier],['Immigration path',l.seg.immigration],['Destination',l.seg.destination],['Created',l.created||(l.historical?'unknown (historical)':'')],['Imported at',l.importedAt],['Last updated',l.updated],['Closed',l.closed],['Notes',l.notes]];
-  $('#dlg').innerHTML=`<dl>${rows.filter(r=>r[1]!==''&&r[1]!=null).map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between">${String(l.id).startsWith('sheet:')?'<span class="sub">Only in the contract sheets</span>':`<a href="${esc(odoo)}/web#id=${l.id}&model=crm.lead&view_type=form" target="_blank" rel="noopener">Open in Odoo</a>`}<button onclick="document.getElementById('dlg').close()">Close</button></div>`;
+  $('#dlg').innerHTML=`<dl>${rows.filter(r=>r[1]!==''&&r[1]!=null).map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between">${!/^\d+$/.test(String(l.id))?`<span class="sub">${String(l.id).startsWith('form:')?'Form submission, no card in Odoo':'Only in the contract sheets'}</span>`:`<a href="${esc(odoo)}/web#id=${l.id}&model=crm.lead&view_type=form" target="_blank" rel="noopener">Open in Odoo</a>`}<button onclick="document.getElementById('dlg').close()">Close</button></div>`;
   $('#dlg').showModal();
 }
 

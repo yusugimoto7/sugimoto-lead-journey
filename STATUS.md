@@ -196,6 +196,9 @@ Working notes so a new session can pick up where the last one stopped.
   Main tab as `forms` (header row first, like sg/sb); until then the panel says "not connected". Tested with a
   simulated feed: 26 Sep-26 Oct 800 forms, 578 new card, 102 person already in Odoo, 120 no card (113 stuck sending).
   The form dashboard's Apps Script URL now answers 404. Excel list of the 120 sent to the owner.
+- Owner: forms with no Odoo card count as NEW leads too (A + forms). `formOnlyLeads` (lib/contracts.js) -> leads with
+  id `form:<row>`, stage "0- New Card (form, not in Odoo)", Pre meeting, Open, form date, source/medium/budget/path/
+  destination/age from the form. Simulated: last 30 days 772 Odoo + 120 forms = 892. Live once n8n sends `forms`.
 
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
