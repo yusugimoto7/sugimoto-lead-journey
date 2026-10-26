@@ -169,6 +169,13 @@ Working notes so a new session can pick up where the last one stopped.
   with all leads, table + time series). Free-text segment values are whitespace-normalised (duplicate path rows).
   The Country card (Odoo country_id = residence, ~empty) is replaced by Destination (market).
 
+## Duplicate cards (2026-10-26)
+- Owner: Odoo archives a new card (no lost reason) when the person already has a card. Checked: all 603 such cards at
+  New Card in the last 30 days share an email/phone with an earlier card. Rule (lib/data.js, [dedupe]): a native card
+  that is archived, has no lost reason, is not signed and shares email or phone with an earlier card is `duplicate`
+  and leaves every count. 885 cards in total. Last 30 days: 1,298 -> 691 native leads; native all time 16,499.
+- Not removed: other repeat cards of a known person (open 409, lost, 128 signed) since they are being worked.
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).
