@@ -106,11 +106,42 @@ function heat(m,label){
 }
 
 const R={};
+const RANGES=[['3d','3 days',3],['7d','7 days',7],['2w','2 weeks',14],['1m','1 month',30],['3m','3 months',91],['6m','6 months',182],['1y','1 year',365],['custom','Custom',0]];
+const BCOL={'Pre meeting':()=>col(0),'Meeting set and done':()=>col(1),'Pre contract':()=>col(4),'Contract sent':()=>col(3),'Signed and paid':()=>col(2),'Archive':()=>css('--mute'),'Long-term follow-up':()=>'#b9a66b','Other':()=>'#c9c8c0'};
+const MAIN_B=['Pre meeting','Meeting set and done','Pre contract','Contract sent','Signed and paid','Archive'];
+let P={range:'7d',from:'',to:'',basis:'created',dim:'source',source:'',medium:''};
+try{P=Object.assign(P,JSON.parse(localStorage.getItem('period')||'{}'))}catch(e){}
+const isoDay=d=>d.toISOString().slice(0,10);
+function periodDates(){
+  if(P.range==='custom'&&P.from&&P.to)return [P.from,P.to];
+  const r=RANGES.find(x=>x[0]===P.range)||RANGES[1];const to=new Date();return [isoDay(new Date(to-(r[2]-1)*864e5)),isoDay(to)];
+}
+async function renderPeriod(box){
+  try{localStorage.setItem('period',JSON.stringify(P))}catch(e){}
+  const [from,to]=periodDates();
+  const q=new URLSearchParams({from,to,basis:P.basis,dim:P.dim,source:P.source,medium:P.medium});
+  const d=await api('/api/period?'+q);
+  const delta=(a,b)=>{if(!b)return a?'new vs 0 before':'–';const v=Math.round((a-b)/b*100);return `${v>0?'+':''}${v}% vs previous ${d.span} days (${n0(b)})`};
+  const shown=[...MAIN_B,...['Long-term follow-up','Other'].filter(b=>d.current[b]||d.previous[b])];
+  const opt=(k,label,opts,cur)=>`<select data-p="${k}"><option value="">${label}</option>${opts.map(o=>`<option ${cur===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+  box.innerHTML=`<div class="card" style="margin-bottom:14px"><h3>What happened in Odoo</h3>
+   <div class="filters" style="align-items:center">${RANGES.map(([k,l])=>`<button data-r="${k}" class="${P.range===k?'on':''}" style="${P.range===k?'background:rgba(var(--accent-rgb),.14);color:var(--accent);font-weight:600':''}">${l}</button>`).join('')}
+   ${P.range==='custom'?`<input type="date" data-p="from" value="${esc(P.from||from)}"> – <input type="date" data-p="to" value="${esc(P.to||to)}">`:''}</div>
+   <div class="filters"><select data-p="basis"><option value="created" ${P.basis==='created'?'selected':''}>New leads (created in period)</option><option value="stage" ${P.basis==='stage'?'selected':''}>Stage moves (reached current stage in period)</option></select>
+   <select data-p="dim">${[['source','By source'],['medium','By medium'],['campaign','By campaign'],['user','By salesperson'],['referrer','By referred by']].map(([k,l])=>`<option value="${k}" ${P.dim===k?'selected':''}>${l}</option>`).join('')}</select>
+   ${opt('source','All sources',d.facets.source,P.source)}${opt('medium','All mediums',d.facets.medium,P.medium)}</div>
+   <div class="note">${esc(d.from)} → ${esc(d.to)} (${d.span} days) · ${d.basis==='created'?'leads created in the period, shown in the stage group they are in now (recent leads have had less time to move on, so later groups look smaller; use Stage moves to see activity)':'cards whose current stage was reached in the period, i.e. what moved'} · native Odoo cards only; contract records imported in bulk are placed at their contract date.</div>
+   <div class="grid kpis">${kpi(d.basis==='created'?'New leads':'Cards moved',n0(d.total),delta(d.total,d.prevTotal))}${shown.map(b=>kpi(b,n0(d.current[b]),delta(d.current[b],d.previous[b]))).join('')}</div>
+   <div class="grid two">${card(`Per ${d.unit}`,canvas('c-per'))}${card(`By ${({source:'source',medium:'medium',campaign:'campaign',user:'salesperson',referrer:'referred by'})[d.dim]}`,`<div class="scroll"><table><tr><th>${esc(d.dim)}</th><th class="r">Total</th>${shown.map(b=>`<th class="r">${esc(b)}</th>`).join('')}</tr>${d.rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="r">${n0(r.total)}</td>${shown.map(b=>`<td class="r">${r[b]||''}</td>`).join('')}</tr>`).join('')}</table></div>${d.otherRows?`<div class="note">+${d.otherRows} more</div>`:''}`)}</div></div>`;
+  mk('c-per',{type:'bar',data:{labels:d.timeline.map(x=>x.key),datasets:shown.map(b=>({label:b,data:d.timeline.map(x=>x[b]),backgroundColor:BCOL[b]()}))},options:{scales:{x:{stacked:true},y:{stacked:true}},plugins:{legend:{position:'bottom'}}}});
+  box.querySelectorAll('button[data-r]').forEach(b=>b.onclick=()=>{P.range=b.dataset.r;if(P.range==='custom'&&!P.from){P.from=from;P.to=to}renderPeriod(box)});
+  box.querySelectorAll('[data-p]').forEach(x=>x.onchange=e=>{P[e.target.dataset.p]=e.target.value;renderPeriod(box)});
+}
 R.overview=async el=>{
   const s=await cached('summary'),t=s.totals;
   const pending=t.open;
   const h=s.historical;
-  el.innerHTML=`<div class="grid kpis">${kpi('Total leads',n0(t.total),scope==='native'?'native leads'+(s.monthly.length?', since '+s.monthly[0].month:''):scope==='all'?'native + historical':'historical only')}${kpi('Lost',n0(t.lost),'inactive + reason')}${kpi('Pending',n0(pending),'open, not converted')}${kpi('Converted',n0(t.converted),'Stage 22')}${kpi('Conversion rate',t.rate+'%',t.historical?'converted / '+n0(t.rateBase)+' non-historical':'converted / total')}</div>
+  el.innerHTML=`<div id="period"></div><h3 style="margin:18px 0 10px">All time (${scope==='native'?'native':scope})</h3><div class="grid kpis">${kpi('Total leads',n0(t.total),scope==='native'?'native leads'+(s.monthly.length?', since '+s.monthly[0].month:''):scope==='all'?'native + historical':'historical only')}${kpi('Lost',n0(t.lost),'inactive + reason')}${kpi('Pending',n0(pending),'open, not converted')}${kpi('Converted',n0(t.converted),'Stage 22')}${kpi('Conversion rate',t.rate+'%',t.historical?'converted / '+n0(t.rateBase)+' non-historical':'converted / total')}</div>
   <div class="grid two">${card('Leads per month',canvas('c-month')+'<div class="note">'+(scope==='native'?'Native leads by creation date.':'Historical leads are placed by their Created at date; '+n0(h.total-h.withRealDate)+' without it are left out.')+'</div>')}${card('By year',canvas('c-year'))}</div>
   ${card('Historical (imported) leads',h.total?`<div class="grid kpis" style="margin:0">${kpi('Imported',n0(h.total),n0(h.native)+' native leads')}${kpi('With contract data',n0(h.withContractData),n0(h.withContractValue)+' with a value')}${kpi('At Stage 22 in Odoo',n0(h.atStage22),'not counted as signed')}${kpi('Have a lost reason',n0(h.withLostReason),'not counted as lost')}</div><div class="note">Imported ${esc((h.importedFrom||'').slice(0,10))} to ${esc((h.importedTo||'').slice(0,10))}. ${n0(h.withRealDate)} have a Created at date${h.withRealDate?` (${esc((h.realFrom||'').slice(0,10))} to ${esc((h.realTo||'').slice(0,10))})`:''}. Their outcomes are unknown, so they are excluded from conversion rates, revenue, lost analysis and time charts. Use the Data scope menu to browse them.</div>`:'<div class="note">No leads have the Historical lost reason. Check /api/status → lost_reasons.</div>')}`;
   if(!s.monthly.length)document.getElementById('c-month').parentElement.innerHTML='<div class="note">No dated native leads in this scope.</div>';
@@ -119,6 +150,7 @@ R.overview=async el=>{
     {label:'Converted',data:s.monthly.map(m=>m.converted),borderColor:col(2),backgroundColor:col(2),pointRadius:0,tension:.25}]},options:{interaction:{mode:'index',intersect:false}}});
   mk('c-year',{type:'bar',data:{labels:s.byYear.map(y=>y.year),datasets:[
     {label:'Total',data:s.byYear.map(y=>y.total),backgroundColor:col(0)},{label:'Converted',data:s.byYear.map(y=>y.converted),backgroundColor:col(2)},{label:'Lost',data:s.byYear.map(y=>y.lost),backgroundColor:col(3)}]}});
+  await renderPeriod($('#period'));
 };
 
 function dual(id,rows,limit=15){

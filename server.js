@@ -74,6 +74,7 @@ app.get('/api/refresh', (_req, res) => {
   startLoad(true); // runs in the background; poll /api/status (syncing / last_sync)
   res.status(202).json({ started: true, syncing: true });
 });
+app.get('/api/period', route((d, req) => A.period(d.all, req.query)));
 app.get('/api/summary', route((d) => A.summary(d.leads, d.all)));
 app.get('/api/sources', route((d) => A.sources(d.leads)));
 app.get('/api/journey', route((d) => A.journey(d.leads)));
