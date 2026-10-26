@@ -174,7 +174,11 @@ Working notes so a new session can pick up where the last one stopped.
   New Card in the last 30 days share an email/phone with an earlier card. Rule (lib/data.js, [dedupe]): a native card
   that is archived, has no lost reason, is not signed and shares email or phone with an earlier card is `duplicate`
   and leaves every count. 885 cards in total. Last 30 days: 1,298 -> 691 native leads; native all time 16,499.
-- Not removed: other repeat cards of a known person (open 409, lost, 128 signed) since they are being worked.
+- Owner: the same form sent again within 24 h counts as LOST (lost reason "Same form again within 24 h", 571 cards);
+  repeats more than 24 h after the earlier card are left out (314).
+- Not removed: other repeat cards of a known person (open, lost, signed). Owner will decide later; do not touch.
+- Lead Journey: step conversion table (this vs previous period), groups by market, stage table grouped by group with
+  growth, share, open/lost/archived, Canada/Europe, Total row. Overview "By source" table has a Total row.
 
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
