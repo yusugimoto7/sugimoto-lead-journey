@@ -183,6 +183,17 @@ Working notes so a new session can pick up where the last one stopped.
 - Lead Journey: step conversion table (this vs previous period), groups by market, stage table grouped by group with
   growth, share, open/lost/archived, Canada/Europe, Total row. Overview "By source" table has a Total row.
 
+## Form sheet vs Odoo (2026-10-26, sheet 1hiRcyNEA-zggpDW-OldQ1CRcbPVmjMipfpG0BZIiIOU tab "Main")
+- The owner's 791 = form submissions (Main tab, collapsed on name+phone+email+date, test rows dropped). Re-counted:
+  27 Sep-26 Oct 793, 28 Aug-26 Sep 338 (matches the owner's 338). 26 Sep-26 Oct 799.
+- Of the 799: 577 got an Odoo card within 2 days, 84 a card more than 2 days later, 18 only an older card (person
+  already in Odoo), 120 NO Odoo card. Of those 120, ~113 have added_to_odoo = "sending <today 17:06-17:32>" (stuck,
+  retried every ~2 min) and 7 = 0; they start 13-14 Oct (~10 a day). Leak in the form -> Odoo sync. List sent to owner.
+- Odoo cards with no form row: 214 last month (mostly Instagram_ca by Administrator), 50 the month before (mostly
+  manual cards by staff with no source: Leila Fathi, Yu Sugimoto, Houshang Hajati).
+- Dashboard still counts Odoo cards (779 for 26 Sep-26 Oct). Owner to decide whether new-lead counts should come from
+  the form sheet instead.
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).
