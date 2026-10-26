@@ -159,6 +159,16 @@ Working notes so a new session can pick up where the last one stopped.
   prepared for the owner (1,050 rows: .id, proposed Created at = original historical card's Created at (350) or the
   earliest contract date (602); 98 have no date; 164 have a contract dated on/after 2024-11-01 and are marked CHECK).
 
+## Market switch, journey, compare (2026-10-26, later)
+- Lead Journey funnel now uses the owner's stage groups (PHASES in lib/data.js), reached = this group or later.
+- Market (Canada / Europe): header switch, applied to every endpoint (`market=`). `marketOf`: Destination field
+  (filled with Canada/Europe on 99% of native cards, same as the tags), else tag, source _ca/_eu, budget EUR, contract
+  currency. Owner: imported historical leads dated before summer 2024 (< 2024-06-21) are Canada.
+  Native: Canada 10,680 (254 signed, 2.4%), Europe 6,490 (18 signed, 0.3%).
+- Segments: "Compare" card (pick values of path / consultant's path / budget / market / source / medium, compared
+  with all leads, table + time series). Free-text segment values are whitespace-normalised (duplicate path rows).
+  The Country card (Odoo country_id = residence, ~empty) is replaced by Destination (market).
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).

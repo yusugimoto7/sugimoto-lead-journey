@@ -59,6 +59,7 @@ dl{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:0}dt{color:v
 .banner{background:rgba(var(--accent-rgb),.1);border:1px solid rgba(var(--accent-rgb),.35);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:12.5px;display:none}
 .loading{color:var(--mute);padding:40px;text-align:center}
 #pbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 20px;border-bottom:1px solid var(--line);background:var(--card)}
+#market{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}#market button{border:0;border-radius:0;background:none;padding:6px 12px}#market button.on{background:rgba(var(--accent-rgb),.14);color:var(--accent);font-weight:600}
 #pbar button.on{background:rgba(var(--accent-rgb),.14);color:var(--accent);font-weight:600}
 #pbar .sub{margin-left:6px}
 .up{color:#1a8a4a}.down{color:#c0392b}
@@ -68,7 +69,7 @@ dl{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:0}dt{color:v
 <body>
 <header>
   <div><h1>Sugimoto Visa · Lead Journey</h1><div class="sub" id="status">Connecting to Odoo…</div></div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><label class="scope">Data scope <select id="scope" aria-label="Data scope"><option value="native">Native only</option><option value="historical">Historical only</option><option value="all">All leads</option></select></label><button id="refresh">Refresh from Odoo</button><button id="theme" aria-label="Toggle theme">Theme</button></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><div class="seg" id="market" role="group" aria-label="Market"><button data-m="">All markets</button><button data-m="Canada">Canada</button><button data-m="Europe">Europe</button></div><label class="scope">Data scope <select id="scope" aria-label="Data scope"><option value="native">Native only</option><option value="historical">Historical only</option><option value="all">All leads</option></select></label><button id="refresh">Refresh from Odoo</button><button id="theme" aria-label="Toggle theme">Theme</button></div>
 </header>
 <nav id="tabs"></nav>
 <div id="pbar"></div>
@@ -103,16 +104,17 @@ function growthTable(cur,prev,label,{key='name',val='total',limit=15,extra=[],to
   return `<div class="scroll"><table><tr><th>${esc(label)}</th><th class="r">Now</th>${pm?'<th class="r">Before</th><th class="r">Growth</th>':''}${extra.map(e=>`<th class="r">${e[0]}</th>`).join('')}</tr>${cur.slice(0,limit).map(r=>row(r,false)).join('')}${tot?row(tot,true):''}</table></div>${cur.length>limit?`<div class="note">Top ${limit} of ${n0(cur.length)} shown; Total covers all.</div>`:''}`;
 }
 const store={};let charts={};let current='overview';let scope='native';try{scope=localStorage.getItem('scope')||'native'}catch(e){}
+let market='';try{market=localStorage.getItem('market')||''}catch(e){}
 
 // Every call carries the scope and, unless it is "All time", the selected window (lead date: Created on / Created at).
 async function api(p){
-  const w=periodDates(),q=new URLSearchParams({scope});
+  const w=periodDates(),q=new URLSearchParams({scope});if(market)q.set('market',market);
   if(w&&!/[?&]from=/.test(p)&&!p.startsWith('/api/status')){q.set('from',w[0]);q.set('to',w[1])}
   const r=await fetch(p+(p.includes('?')?'&':'?')+q);const t=await r.text();let j=null;try{j=JSON.parse(t)}catch(e){}
   if(!r.ok||!j){const e=new Error(j&&j.error||`Server answered ${r.status} ${r.statusText||''}`.trim());e.syncing=!!(j&&j.syncing)||r.status===502&&!j||r.status===504;throw e}
   return j}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-async function cached(k){const key=k+'|'+(periodDates()||['all']).join('~');return store[key]||(store[key]=await api('/api/'+k))}
+async function cached(k){const key=k+'|'+market+'|'+(periodDates()||['all']).join('~');return store[key]||(store[key]=await api('/api/'+k))}
 function col(i){return getComputedStyle(document.documentElement).getPropertyValue('--c'+((i%5)+1)).trim()}
 function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
 function mk(id,cfg){if(charts[id])charts[id].destroy();
@@ -148,7 +150,7 @@ function renderPbar(){
   let prev='';if(w){const a=Date.parse(w[0]+'T00:00:00Z'),b=Date.parse(w[1]+'T00:00:00Z'),n=Math.round((b-a)/864e5)+1;prev=`compared with ${isoDay(new Date(a-n*864e5))} → ${isoDay(new Date(a-864e5))}`}
   $('#pbar').innerHTML=RANGES.map(([k,l])=>`<button data-r="${k}" class="${P.range===k?'on':''}">${l}</button>`).join('')+
     (P.range==='custom'?`<input type="date" id="pf" value="${esc(w?w[0]:'')}"> – <input type="date" id="pt" value="${esc(w?w[1]:'')}">`:'')+
-    `<span class="sub">${w?`${w[0]} → ${w[1]} · ${prev}`:'All time, no comparison'} · by lead date (Created on; Created at for imported cards)</span>`;
+    `<span class="sub">${market?`<b>${esc(market)} only</b> · `:''}${w?`${w[0]} → ${w[1]} · ${prev}`:'All time, no comparison'} · by lead date (Created on; Created at for imported cards)</span>`;
   const apply=()=>{try{localStorage.setItem('period',JSON.stringify(P))}catch(e){}renderPbar();document.querySelectorAll('section').forEach(x=>{if(x.id!=='t-'+current)x.innerHTML=''});show(current)};
   $('#pbar').querySelectorAll('button[data-r]').forEach(b=>b.onclick=()=>{const w0=periodDates();P.range=b.dataset.r;if(P.range==='custom'&&!(P.from&&P.to)){const d=w0||[isoDay(new Date(Date.now()-29*864e5)),isoDay(new Date())];P.from=d[0];P.to=d[1]}apply()});
   ['pf','pt'].forEach(id=>{const x=$('#'+id);if(x)x.onchange=()=>{P[id==='pf'?'from':'to']=x.value;if(P.from&&P.to&&P.from<=P.to)apply()}});
@@ -217,22 +219,37 @@ R.journey=async el=>{
   const j=await cached('journey'),p=j._prev;
   const pp=p?byName(p.phases,'phase'):null,ps=p?byName(p.stages,'stage'):null;
   const max=Math.max(1,...j.phases.map(x=>x.reached));
-  el.innerHTML=card('Funnel by phase',`<div class="note">Bar = leads of the period that reached this phase or beyond (by their current/last stage, so lost leads count up to where they stalled). Long-Term Nurture is outside the linear flow.</div>`+
-    j.phases.map(x=>`<div class="frow"><div class="n">${esc(x.phase)}<small>stages ${x.range}</small></div><div><div class="bar" style="width:${Math.max(x.reached/max*100,3)}%">${n0(x.reached)}</div><small class="sub">${n0(x.current)} currently here · ${n0(x.open)} open · ${n0(x.lost)} lost${pp?` · reached ${vs(x.reached,(pp.get(x.phase)||{}).reached||0)}`:''}</small></div></div>`).join(''))+
+  el.innerHTML=card('Funnel by phase',`<div class="note">Phases = your stage groups. Bar = leads of the period that reached this phase or a later one (by their current/last stage, so lost and archived leads count up to where they stalled; signed leads count in every phase). ${j.outside?n0(j.outside)+' leads sit in no stage group (TEST Column, imported cards without a stage) and are left out.':''}</div>`+
+    j.phases.map(x=>`<div class="frow"><div class="n">${esc(x.phase)}<small>stages ${esc(x.range)}</small></div><div><div class="bar" style="width:${Math.max(x.reached/max*100,3)}%">${n0(x.reached)}</div><small class="sub">${n0(x.current)} currently here · ${n0(x.open)} open · ${n0(x.lost)} lost · ${n0(x.archived)} archived${pp?` · reached ${vs(x.reached,(pp.get(x.phase)||{}).reached||0)}`:''}</small></div></div>`).join(''))+
     `<h3 style="margin:18px 0 8px">Stage detail</h3><div class="grid stages">${j.stages.map(x=>`<div class="card kpi"><div class="l">${esc(x.phase)}</div><div style="font-weight:600;margin:2px 0">${esc(x.stage)}</div><div class="v">${n0(x.total)}</div><div class="s">${n0(x.open)} open · ${n0(x.lost)} lost${ps?`<br>${vs(x.total,(ps.get(x.stage)||{}).total||0)}`:''}</div></div>`).join('')}</div>`;
 };
 
+const CMPS={dim:'path',values:''};
+const CMPL={path:'Immigration path (lead)',advisor:"Consultant's path",budget:'Budget tier',market:'Market',source:'Source',medium:'Medium'};
+async function renderCompare(box){
+  const d=await api('/api/compare?'+new URLSearchParams({dim:CMPS.dim,...(CMPS.values?{values:CMPS.values}:{})}));
+  const pv=d._prev?byName([d._prev.total,...d._prev.items]):null;
+  const rows=[d.total,...d.items];
+  box.innerHTML=card('Compare',`<div class="filters"><select id="cmp-dim">${Object.entries(CMPL).map(([k,v])=>`<option value="${k}" ${d.dim===k?'selected':''}>${esc(v)}</option>`).join('')}</select><span class="sub">Pick values to compare with all leads of the period:</span></div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:10px">${d.options.slice(0,30).map(o=>`<label class="sub" style="cursor:pointer"><input type="checkbox" value="${esc(o.name)}" ${d.chosen.includes(o.name)?'checked':''}> ${esc(o.name)} (${n0(o.n)})</label>`).join('')}</div>
+  <div class="grid two">${card('Leads per '+(rows[0].series.unit||'month'),canvas('c-cmp'))}<div class="scroll"><table><tr><th></th><th class="r">Leads</th><th class="r">Share</th>${pv?'<th class="r">Before</th><th class="r">Growth</th>':''}<th class="r">Signed</th><th class="r">Rate</th><th class="r">Lost</th><th class="r">Open</th></tr>${rows.map((r,i)=>{const b=pv?(pv.get(r.name)||{total:0}).total:null;return `<tr style="${i?'':'font-weight:600'}"><td>${esc(r.name)}</td><td class="r">${n0(r.total)}</td><td class="r">${r.share}%</td>${pv?`<td class="r">${n0(b)}</td><td class="r">${gcell(r.total,b)}</td>`:''}<td class="r">${n0(r.converted)}</td><td class="r">${r.rate}%</td><td class="r">${n0(r.lost)}</td><td class="r">${n0(r.open)}</td></tr>`}).join('')}</table></div></div>`);
+  const keys=d.total.series.points.map(p=>p.key);
+  mk('c-cmp',{type:'line',data:{labels:keys,datasets:rows.map((r,i)=>{const m=new Map(r.series.points.map(p=>[p.key,p.total]));return {label:r.name,data:keys.map(k=>m.get(k)||0),borderColor:i?col(i-1):css('--mute'),backgroundColor:i?col(i-1):css('--mute'),borderDash:i?[]:[4,4],pointRadius:keys.length>40?0:2,tension:.25}})},options:{interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom'}}}});
+  $('#cmp-dim').onchange=e=>{CMPS.dim=e.target.value;CMPS.values='';renderCompare(box)};
+  box.querySelectorAll('input[type=checkbox]').forEach(x=>x.onchange=()=>{CMPS.values=[...box.querySelectorAll('input[type=checkbox]:checked')].map(c=>c.value).join('|');renderCompare(box)});
+}
 R.segments=async el=>{
   const s=await cached('segments');
   const blocks=[['budget','Budget distribution'],['immigration','Immigration paths'],['destination','Destination split']];
   const p=s._prev,bt=s.budgetTiers||[],pb=p?byName(p.budgetTiers):null,bmax=Math.max(1,...bt.map(x=>x.share));
   const mix=bt.filter(x=>x.total||x.name.startsWith('Tier')).map((x,i)=>`<div style="margin:10px 0 14px"><div style="display:flex;justify-content:space-between;gap:8px"><div><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:${x.name.startsWith('Tier')?col(0):css('--mute')};opacity:${x.name.startsWith('Tier')?(.45+i*.12).toFixed(2):1};margin-right:8px"></span><b>${esc(x.name)}</b><div class="sub" style="margin-left:19px">${esc(x.desc)}</div></div><div style="text-align:right;white-space:nowrap"><b>${x.share}%</b> <span class="sub">· ${n0(x.total)}</span>${pb?`<div class="sub">${gcell(x.total,(pb.get(x.name)||{}).total||0)}</div>`:''}</div></div><div style="height:6px;background:var(--line);border-radius:4px;margin-top:6px"><div style="height:6px;border-radius:4px;background:${col(0)};width:${(x.share/bmax*100).toFixed(1)}%"></div></div></div>`).join('');
-  el.innerHTML=`<div class="grid two">${card('Budget mix',mix+'<div class="note">Tiers from the Budget field (toman, CAD or EUR answer). Historical cards without it use the old form answer when it is wholly under 2B toman; other old answers cross the tiers and stay Unscored.</div>')}${card('Budget tiers: can they start a process?',growthTable(bt.filter(x=>x.total||(pb&&(pb.get(x.name)||{}).total)),p&&p.budgetTiers,'Tier',{limit:10,extra:[['Share',r=>(r.share??'')+'%'],['Signed',r=>n0(r.converted)],['Rate',r=>r.rate+'%'],['Lost',r=>n0(r.lost)],['Open',r=>n0(r.open)]]}))}</div>
-  <div class="grid two">${blocks.map(([k,t])=>s[k]?card(`${t} <span class="sub mono">${esc(s[k].field)}</span>`,canvas('c-'+k)+growthTable(s[k].data,p&&p[k]&&p[k].data,t.split(' ')[0],{limit:12,extra:[['Converted',r=>n0(r.converted)]]})):card(t,'<div class="note">No matching custom field found on crm.lead (looked for names/labels containing budget / immigration, program, path / destination). Check /api/status → fields.</div>')).join('')}${card('Country (Odoo country field)',canvas('c-country')+growthTable(s.country,p&&p.country,'Country',{limit:12}))}</div>`;
+  el.innerHTML=`<div id="cmp"></div><div class="grid two">${card('Budget mix',mix+'<div class="note">Tiers from the Budget field (toman, CAD or EUR answer). Historical cards without it use the old form answer when it is wholly under 2B toman; other old answers cross the tiers and stay Unscored.</div>')}${card('Budget tiers: can they start a process?',growthTable(bt.filter(x=>x.total||(pb&&(pb.get(x.name)||{}).total)),p&&p.budgetTiers,'Tier',{limit:10,extra:[['Share',r=>(r.share??'')+'%'],['Signed',r=>n0(r.converted)],['Rate',r=>r.rate+'%'],['Lost',r=>n0(r.lost)],['Open',r=>n0(r.open)]]}))}</div>
+  <div class="grid two">${blocks.map(([k,t])=>s[k]?card(`${t} <span class="sub mono">${esc(s[k].field)}</span>`,canvas('c-'+k)+growthTable(s[k].data,p&&p[k]&&p[k].data,t.split(' ')[0],{limit:12,extra:[['Converted',r=>n0(r.converted)]]})):card(t,'<div class="note">No matching custom field found on crm.lead (looked for names/labels containing budget / immigration, program, path / destination). Check /api/status → fields.</div>')).join('')}${card('Destination (market)',canvas('c-country')+growthTable(s.market,p&&p.market,'Market',{limit:6,extra:[['Signed',r=>n0(r.converted)],['Rate',r=>r.rate+'%']]})+'<div class="note">From the Destination field (else the Canada/Europe tag, source, budget currency or contract currency). Imported historical leads before summer 2024 are Canada. Odoo\'s Country field is the residence country and is almost always empty, so it is not shown.</div>')}</div>`;
   for(const [k] of blocks) if(s[k]){const d=s[k].data.slice(0,12);
     mk('c-'+k,{type:k==='immigration'?'bar':'doughnut',data:{labels:d.map(x=>x.name),datasets:[{label:'Leads',data:d.map(x=>x.total),backgroundColor:d.map((_,i)=>col(i))}]},options:k==='immigration'?{indexAxis:'y',plugins:{legend:{display:false}}}:{}})}
-  const c=s.country.slice(0,12);
-  mk('c-country',{type:'bar',data:{labels:c.map(x=>x.name),datasets:[{label:'Leads',data:c.map(x=>x.total),backgroundColor:col(0)}]},options:{indexAxis:'y',plugins:{legend:{display:false}}}});
+  const c=s.market;
+  mk('c-country',{type:'doughnut',data:{labels:c.map(x=>x.name),datasets:[{label:'Leads',data:c.map(x=>x.total),backgroundColor:c.map((_,i)=>col(i))}]}});
+  await renderCompare($('#cmp'));
 };
 
 const oLink=(odoo,id)=>id&&!String(id).startsWith('sheet:')?`<a href="${esc(odoo)}/web#id=${id}&model=crm.lead&view_type=form" target="_blank" rel="noopener" class="mono">${id}</a>`:'–';
@@ -251,7 +268,7 @@ R.contracts=async el=>{
   const cut=(rows,label)=>`<div class="scroll"><table><tr><th>${label}</th>${cols.slice(0,8).map(x=>`<th class="r">${x[0]}</th>`).join('')}</tr>${rows.slice(0,25).map(r=>`<tr><td>${esc(r.name??'(none)')}</td>${cols.slice(0,8).map(x=>`<td class="r">${x[1](r)}</td>`).join('')}</tr>`).join('')}</table></div>`;
   const list=c.rows.filter(r=>(!CS.category||r.category===CS.category)&&(!CS.step||r.step===CS.step));
   const STEPL={draft_sent:'Draft sent',contract_sent:'Main contract sent',signed:'Signed',terminated:'Terminated',invoice_sent:'Invoice sent'};
-  const csv='/api/contracts-sent.csv'+(w?`?from=${w[0]}&to=${w[1]}`:'');
+  const csv='/api/contracts-sent.csv?'+new URLSearchParams({...(w?{from:w[0],to:w[1]}:{}),...(market?{market}:{})});
   el.innerHTML=feedNote(c)+`<div class="note">${w?`Contracts issued ${esc(w[0])} → ${esc(w[1])}, compared with the window before. `:''}Lead → contract / signed = days from the lead's date (Created on; Created at for imported cards) to the contract's issue / signing date, as medians. Value = professional fees from the sheets on signed contracts.</div>
   <div class="grid kpis">${kpi('Contracts sent',n0(t.sent),g('sent')||`${n0(t.drafts)} drafts · ${n0(t.mainSent)} main`)}${kpi('Signed',n0(t.signed),g('signed')||`${t.rate}% of sent`)}${kpi('Sign rate',t.rate+'%',q?`${q.rate}% the previous period`:'')}${kpi('Lead → contract',dd(t.medLeadToSent),q?`${dd(q.medLeadToSent)} the previous period`:'median')}${kpi('Contract → signed',dd(t.medSentToSigned),q?`${dd(q.medSentToSigned)} the previous period`:'median')}${kpi('Lead → signed',dd(t.medLeadToSigned),q?`${dd(q.medLeadToSigned)} the previous period`:'median')}${kpi('Signed value CAD',money(t.valueCAD,'CAD'),q?vs(t.valueCAD,q.valueCAD):'')}${kpi('Signed value EUR',money(t.valueEUR,'EUR'),q?vs(t.valueEUR,q.valueEUR):'')}</div>
   ${card('Contracts by category and type',catTable)}
@@ -298,7 +315,7 @@ R.revenue=async el=>{
 };
 const RT={step:'',user:'',status:'',budget:''};
 R.retarget=async el=>{
-  const c=await cached('retargeting'),q=c._prev,pw=periodDates(),csvHref='/api/retargeting.csv'+(pw?`?from=${pw[0]}&to=${pw[1]}`:'');
+  const c=await cached('retargeting'),q=c._prev,pw=periodDates(),csvHref='/api/retargeting.csv?'+new URLSearchParams({...(pw?{from:pw[0],to:pw[1]}:{}),...(market?{market}:{}),scope});
   const rows=c.rows.filter(r=>(!RT.step||r.stepLabel===RT.step)&&(!RT.user||(r.user||'(none)')===RT.user)&&(!RT.status||r.status===RT.status)&&(!RT.budget||r.budgetTier===RT.budget));
   const sel=(k,l,opts)=>`<select data-k="${k}"><option value="">${l}</option>${opts.map(o=>`<option ${RT[k]===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
   el.innerHTML=`<div class="note">${c._window?`Draft or main contract issued ${esc(c._window.from)} → ${esc(c._window.to)}. `:''}<b>Drafts and main contracts.</b> People who received a draft or the main contract and never signed, one row per person (a person who signed on any card is left out). Draft sent first, newest first. Draft date = contract issued date in the sheets, else Odoo "Contract sent on".</div>
@@ -315,7 +332,7 @@ const AUL={age:'Age',quality:'Card quality',budget:'Budget tier',path:'Immigrati
 async function renderAudience(box){
   const q=new URLSearchParams(Object.entries(AU).filter(([,v])=>v));
   const a=await api('/api/audience?'+q);
-  const w=periodDates(),csvq=new URLSearchParams(q);if(w){csvq.set('from',w[0]);csvq.set('to',w[1])}csvq.set('scope',scope);
+  const w=periodDates(),csvq=new URLSearchParams(q);if(w){csvq.set('from',w[0]);csvq.set('to',w[1])}csvq.set('scope',scope);if(market)csvq.set('market',market);
   const sel=k=>`<select data-a="${k}"><option value="">${AUL[k]}: all</option>${a.cuts[k].map(o=>`<option value="${esc(o.name)}" ${AU[k]===o.name?'selected':''}>${esc(o.name)} (${n0(o.n)})</option>`).join('')}</select>`;
   const cutCard=k=>card(AUL[k],`<div class="scroll"><table><tr><th>${AUL[k]}</th><th class="r">Leads</th></tr>${a.cuts[k].slice(0,15).map(o=>`<tr class="click" data-a="${k}" data-v="${esc(o.name)}" style="${AU[k]===o.name?'font-weight:600':''}"><td>${esc(o.name)}</td><td class="r">${n0(o.n)}</td></tr>`).join('')}</table></div>`);
   box.innerHTML=`<h3 style="margin:0 0 6px">Audience: all leads that have not signed</h3><div class="note">Leads of the selected period (by lead date) that are not signed, whatever their stage. Each cut counts within the other filters; click a row to filter. Card quality = the Quality field; consultant's path = the Immigration Path selection staff set on the card (Canada / Europe).</div>
@@ -374,7 +391,7 @@ R.leads=async el=>{
     fl.innerHTML=`<input id="lq" placeholder="Search name, email, phone, ID" value="${esc(F.q)}">`+sel('status','Status',fa.status)+sel('stage','Stage',fa.stage)+sel('year','Year',fa.year)+sel('source','Source',fa.source)+sel('referrer','Referred by',fa.referrer)+sel('sheet','Contract sheet',fa.sheet)+sel('user','Salesperson',fa.user)+sel('reason','Lost reason',fa.reason)+`<button id="lcsv">Export CSV</button>`;
     let tm;$('#lq').oninput=e=>{clearTimeout(tm);tm=setTimeout(()=>{F.q=e.target.value;F.page=1;R.leads(el)},300)};
     fl.querySelectorAll('select').forEach(s=>s.onchange=e=>{F[e.target.dataset.k]=e.target.value;F.page=1;R.leads(el)});
-    $('#lcsv').onclick=()=>{const p=new URLSearchParams(F);p.delete('page');p.set('scope',scope);const w=periodDates();if(w){p.set('from',w[0]);p.set('to',w[1])}location.href='/api/leads.csv?'+p};
+    $('#lcsv').onclick=()=>{const p=new URLSearchParams(F);p.delete('page');p.set('scope',scope);const w=periodDates();if(w){p.set('from',w[0]);p.set('to',w[1])}if(market)p.set('market',market);location.href='/api/leads.csv?'+p};
   }
   $('#lsum').textContent=`${n0(r.total)} leads match · ${n0(r.summary.converted)} converted · ${n0(r.summary.lost)} lost · ${n0(r.summary.open)} open`;
   const th=(k,l,c='')=>`<th class="${c}" data-s="${k}" style="cursor:pointer">${l}${F.sort===k?(F.dir==='asc'?' ▲':' ▼'):''}</th>`;
@@ -437,6 +454,10 @@ function setTheme(t){document.documentElement.dataset.theme=t;try{localStorage.s
 $('#theme').onclick=()=>{setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');if(current!=='leads')show(current)};
 let saved=null;try{saved=localStorage.getItem('theme')}catch(e){}
 setTheme(saved||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+function renderMarket(){document.querySelectorAll('#market button').forEach(b=>b.classList.toggle('on',b.dataset.m===market))}
+document.querySelectorAll('#market button').forEach(b=>b.onclick=()=>{market=b.dataset.m;try{localStorage.setItem('market',market)}catch(e){}renderMarket();renderPbar();
+  document.querySelectorAll('section').forEach(x=>{if(x.id!=='t-'+current)x.innerHTML=''});show(current)});
+renderMarket();
 renderPbar();
 status();
 show(TABS.some(t=>t[0]===location.hash.slice(1))?location.hash.slice(1):'overview');

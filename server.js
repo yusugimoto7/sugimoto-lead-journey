@@ -46,9 +46,13 @@ const scoped = (d, req) => {
   const scope = ['native', 'historical', 'all'].includes(req.query.scope) ? req.query.scope : 'native';
   // Duplicate import cards (a pre-CRM client's second card) stay out of every count; the Contracts tab still lists them.
   const counted = d.leads.filter((l) => !l.duplicate);
-  const inScope = scope === 'all' ? counted : counted.filter((l) => l.historical === (scope === 'historical'));
+  // market=Canada|Europe narrows every count to that market (Destination field, see marketOf in lib/data.js).
+  const market = ['Canada', 'Europe'].includes(req.query.market) ? req.query.market : null;
+  const inScope = (scope === 'all' ? counted : counted.filter((l) => l.historical === (scope === 'historical')))
+    .filter((l) => !market || l.market === market);
+  const all = market ? d.leads.filter((l) => l.market === market) : d.leads;
   const win = windowOf(req.query);
-  return { ...d, leads: win ? inScope.filter(inWin(win)) : inScope, inScope, all: d.leads, scope, win };
+  return { ...d, leads: win ? inScope.filter(inWin(win)) : inScope, inScope, all, scope, win, market };
 };
 const route = (fn, { prev = true } = {}) => (req, res) => {
   const d = current();
@@ -97,6 +101,7 @@ app.get('/api/refresh', (_req, res) => {
   res.status(202).json({ started: true, syncing: true });
 });
 app.get('/api/period', route((d, req) => A.period(d.all, req.query), { prev: false }));
+app.get('/api/compare', route((d, req) => A.compare(d.leads, req.query, d.win)));
 app.get('/api/summary', route((d) => A.summary(d.leads, d.all, d.win)));
 app.get('/api/sources', route((d) => A.sources(d.leads)));
 app.get('/api/journey', route((d) => A.journey(d.leads)));
@@ -104,9 +109,9 @@ app.get('/api/lost', route((d) => A.lost(d.leads)));
 app.get('/api/sales', route((d) => A.sales(d.leads, d.det)));
 app.get('/api/deep', route((d) => A.deep(d.leads)));
 app.get('/api/diagnostics', route((d) => A.diagnostics(d.all, d.det), { prev: false }));
-app.get('/api/contracts', route((d) => ({ ...A.contracts(d.all, d.sheet, d.win), odoo_url: baseUrl() })));
-app.get('/api/revenue-check', route((d) => ({ ...A.revenueCheck(d.all, d.sheet, d.win), odoo_url: baseUrl() })));
-app.get('/api/contracts-sent', route((d) => ({ ...A.contractsSent(d.all, d.sheet, d.win), odoo_url: baseUrl() })));
+app.get('/api/contracts', route((d) => ({ ...A.contracts(d.all, d.sheet, d.win, d.market), odoo_url: baseUrl() })));
+app.get('/api/revenue-check', route((d) => ({ ...A.revenueCheck(d.all, d.sheet, d.win, d.market), odoo_url: baseUrl() })));
+app.get('/api/contracts-sent', route((d) => ({ ...A.contractsSent(d.all, d.sheet, d.win, d.market), odoo_url: baseUrl() })));
 app.get('/api/audience', route((d, req) => { const a = A.audience(d.leads, req.query); delete a.allRows; return { ...a, odoo_url: baseUrl() }; }, { prev: false }));
 const AUD_COLS = ['name', 'partner', 'email', 'phone', 'age', 'quality', 'budgetTier', 'path', 'advisorPath', 'stage', 'status', 'lostReason', 'user', 'source', 'created', 'id'];
 app.get('/api/audience.csv', (req, res) => {
@@ -122,7 +127,8 @@ app.get('/api/contracts-sent.csv', (req, res) => {
   const d = current();
   if (!d) return notReady(res);
   const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const r = A.contractsSent(d.leads, d.sheet, windowOf(req.query));
+  const s = scoped(d, req);
+  const r = A.contractsSent(s.all, d.sheet, s.win, s.market);
   if (!r.available) return res.status(503).json({ error: 'contracts feed not loaded' });
   const csv = [CS_COLS.join(','), ...r.rows.map((x) => CS_COLS.map((c) => esc(x[c])).join(','))].join('\n');
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="contracts-sent.csv"' }).send('\ufeff' + csv);
@@ -133,7 +139,8 @@ app.get('/api/retargeting.csv', (req, res) => {
   const d = current();
   if (!d) return notReady(res);
   const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const rows = A.retargeting(d.leads, windowOf(req.query)).rows;
+  const s = scoped(d, req);
+  const rows = A.retargeting(s.all, s.win).rows;
   const csv = [RT_COLS.join(','), ...rows.map((r) => RT_COLS.map((c) => esc(r[c])).join(','))].join('\n');
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="retargeting-drafts.csv"' }).send('\ufeff' + csv);
 });
