@@ -116,7 +116,8 @@ Working notes so a new session can pick up where the last one stopped.
   records, mostly 2023-2024 Main Contract Sent / Draft Sent). Cards created more than a day after their contract was
   sent now sit at the contract date (685); before Nov 2024 they join the historical period (558). 83 signed native
   cards created after signing are placed at their signing date. Sep 2026 native leads: 1,492 -> 582.
-  Owner: everything created 2026-09-25 is a lead from BEFORE the native period (IMPORT_DAYS), signed or not, whatever
+  Owner: the 2026-09-25 import cards (fee source "Google Sheet", 1,050, made 00:00-04:00 UTC) are leads from BEFORE the
+  native period (IMPORT_DAYS); the 13 real leads that arrived that day stay native. Signed or not, whatever
   its contract date. Those cards have no Created at (0 of 1,063). They all go to the historical period: the client's
   original lead card stands for them when it exists (batch card = duplicate, the original carries a signing); else at
   the contract date if before Nov 2024; else historical "No date" (226, of which 46 signed). 2026-09-25 is now empty.
