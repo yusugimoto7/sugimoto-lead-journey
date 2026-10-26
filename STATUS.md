@@ -112,18 +112,15 @@ Working notes so a new session can pick up where the last one stopped.
 - Stage groups (owner, 2026-10-26): Pre meeting 0, 1, 4 (No Show); Meeting set and done 2-3, 5-10; Pre contract
   11 (Documents & Passport Received) to 12, plus 23 Long-term follow-up; Contract sent 13-19; Signed and paid = 20, 21,
   22 or Won (20/21 now count as converted everywhere); Archive = archived and not signed, plus 24 Canceled Contracts.
-- Found a second import batch: 2026-09-25 00:00-03:00, 738 archived cards with fee source "Google Sheet" (contract
-  records, mostly 2023-2024 Main Contract Sent / Draft Sent). Cards created more than a day after their contract was
-  sent now sit at the contract date (685); before Nov 2024 they join the historical period (558). 83 signed native
-  cards created after signing are placed at their signing date. Sep 2026 native leads: 1,492 -> 582.
-  Owner: the 2026-09-25 import cards (fee source "Google Sheet", 1,050, made 00:00-04:00 UTC) are leads from BEFORE the
-  native period (IMPORT_DAYS); the 13 real leads that arrived that day stay native. Signed or not, whatever
-  its contract date. Those cards have no Created at (0 of 1,063). They all go to the historical period: the client's
-  original lead card stands for them when it exists (batch card = duplicate, the original carries a signing); else at
-  the contract date if before Nov 2024; else historical "No date" (226, of which 46 signed). 2026-09-25 is now empty.
-  Result: native 270 converted / 17,310 = 1.6%; historical 308 / 28,027.
-  Contracts tab "signed from Nov 2024" (277) counts contracts by signing date; the conversion figures count leads by
-  their lead period, so a pre-native lead signed in 2025 is a historical conversion.
+- DATE RULE (owner, 2026-10-26, overrides earlier re-dating): Odoo cards are dated by "Created on" (create_date),
+  imported cards by "Created at" (x_original_created_at). No re-dating by contract dates any more.
+- 2026-09-25 sheet import (fee source "Google Sheet", 1,050 cards, made by Yu Sugimoto 00:00-04:00 UTC) = leads from
+  before the native period -> historical. The 13 real leads of that day stay native. None of the 1,050 has Created at,
+  so 700 sit in historical "No date" (197 of them signed); 350 are duplicates of the person's original historical card
+  (which carries 106 signings). Filling Created at on those cards in Odoo would place them.
+- Result: native 274 converted / 17,384 = 1.6%; historical 304 / 27,975.
+- Contracts tab "signed from Nov 2024" (277) counts contracts by signing date; conversion figures count leads by
+  their own date, so a pre-native lead signed in 2025 is a historical conversion.
 
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
