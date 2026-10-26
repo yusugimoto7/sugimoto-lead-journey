@@ -174,8 +174,11 @@ Working notes so a new session can pick up where the last one stopped.
   New Card in the last 30 days share an email/phone with an earlier card. Rule (lib/data.js, [dedupe]): a native card
   that is archived, has no lost reason, is not signed and shares email or phone with an earlier card is `duplicate`
   and leaves every count. 885 cards in total. Last 30 days: 1,298 -> 691 native leads; native all time 16,499.
-- Owner: the same form sent again within 24 h counts as LOST (lost reason "Same form again within 24 h", 571 cards);
-  repeats more than 24 h after the earlier card are left out (314).
+- FINAL (owner, 2026-10-26): the same form again within 24 h of the person's earlier card = the same lead, left out
+  (571 cards); repeats more than 24 h later stay in (314). Target check: owner's form dashboard
+  (leads-dashboard-icz4.onrender.com, form-submissions sheet via Apps Script, collapses same name/phone/email/date) shows
+  791 for 26 Sep-26 Oct; Odoo with this rule gives 779 (Instagram_ca 491 vs 492, SMS 13 vs 13). Previous 30 days do
+  not match (Odoo 469 vs form 338): Odoo holds cards the form sheet does not.
 - Not removed: other repeat cards of a known person (open, lost, signed). Owner will decide later; do not touch.
 - Lead Journey: step conversion table (this vs previous period), groups by market, stage table grouped by group with
   growth, share, open/lost/archived, Canada/Europe, Total row. Overview "By source" table has a Total row.
