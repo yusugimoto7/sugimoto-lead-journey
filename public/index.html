@@ -218,9 +218,12 @@ R.sources=async el=>{
 R.journey=async el=>{
   const j=await cached('journey'),p=j._prev;
   const pp=p?byName(p.phases,'phase'):null,ps=p?byName(p.stages,'stage'):null;
-  const max=Math.max(1,...j.phases.map(x=>x.reached));
-  el.innerHTML=card('Funnel by phase',`<div class="note">Phases = your stage groups. Bar = leads of the period that reached this phase or a later one (by their current/last stage, so lost and archived leads count up to where they stalled; signed leads count in every phase). ${j.outside?n0(j.outside)+' leads sit in no stage group (TEST Column, imported cards without a stage) and are left out.':''}</div>`+
-    j.phases.map(x=>`<div class="frow"><div class="n">${esc(x.phase)}<small>stages ${esc(x.range)}</small></div><div><div class="bar" style="width:${Math.max(x.reached/max*100,3)}%">${n0(x.reached)}</div><small class="sub">${n0(x.current)} currently here · ${n0(x.open)} open · ${n0(x.lost)} lost · ${n0(x.archived)} archived${pp?` · reached ${vs(x.reached,(pp.get(x.phase)||{}).reached||0)}`:''}</small></div></div>`).join(''))+
+  // Bar = leads of the period that are in this group now, split into open / lost / archived; "reached" (this group or
+  // later) is the funnel figure next to it.
+  const max=Math.max(1,...j.phases.map(x=>x.current));
+  const seg=(n,c,label)=>n?`<div title="${label}: ${n0(n)}" style="width:${n/max*100}%;background:${c};height:100%;display:inline-block"></div>`:'';
+  el.innerHTML=card('Funnel by stage group',`<div class="note">Bar = leads of the period whose current/last stage is in this group (blue open, red lost, grey archived; signed leads in Signed). "Reached" = leads in this group or a later one, the funnel view. ${j.outside?n0(j.outside)+' leads sit in no stage group (TEST Column) and are left out.':''}</div>`+
+    j.phases.map(x=>{const other=x.current-x.open-x.lost-x.archived;return `<div class="frow"><div class="n">${esc(x.phase)}<small>stages ${esc(x.range)}</small></div><div><div style="height:22px;border-radius:5px;overflow:hidden;background:var(--line);white-space:nowrap">${seg(x.open,col(0),'open')}${seg(x.lost,col(3),'lost')}${seg(x.archived,css('--mute'),'archived')}${seg(other,col(2),'signed')}</div><small class="sub"><b>${n0(x.current)}</b> here now (${n0(x.open)} open · ${n0(x.lost)} lost · ${n0(x.archived)} archived${other?` · ${n0(other)} signed`:''}) · <b>${n0(x.reached)}</b> reached this group or later${pp?` · ${vs(x.reached,(pp.get(x.phase)||{}).reached||0)}`:''}</small></div></div>`}).join(''))+
     `<h3 style="margin:18px 0 8px">Stage detail</h3><div class="grid stages">${j.stages.map(x=>`<div class="card kpi"><div class="l">${esc(x.phase)}</div><div style="font-weight:600;margin:2px 0">${esc(x.stage)}</div><div class="v">${n0(x.total)}</div><div class="s">${n0(x.open)} open · ${n0(x.lost)} lost${ps?`<br>${vs(x.total,(ps.get(x.stage)||{}).total||0)}`:''}</div></div>`).join('')}</div>`;
 };
 

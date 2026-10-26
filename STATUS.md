@@ -163,7 +163,7 @@ Working notes so a new session can pick up where the last one stopped.
 - Lead Journey funnel now uses the owner's stage groups (PHASES in lib/data.js), reached = this group or later.
 - Market (Canada / Europe): header switch, applied to every endpoint (`market=`). `marketOf`: Destination field
   (filled with Canada/Europe on 99% of native cards, same as the tags), else tag, source _ca/_eu, budget EUR, contract
-  currency. Owner: imported historical leads dated before summer 2024 (< 2024-06-21) are Canada.
+  currency. Owner: imported historical leads dated before June 2024 (< 2024-06-01) are Canada.
   Native: Canada 10,680 (254 signed, 2.4%), Europe 6,490 (18 signed, 0.3%).
 - Segments: "Compare" card (pick values of path / consultant's path / budget / market / source / medium, compared
   with all leads, table + time series). Free-text segment values are whitespace-normalised (duplicate path rows).
