@@ -173,11 +173,21 @@ async function renderPeriod(box){
   mk('c-per',{type:'bar',data:{labels:d.timeline.map(x=>x.key),datasets:shown.map(b=>({label:b,data:d.timeline.map(x=>x[b]),backgroundColor:BCOL[b]()}))},options:{scales:{x:{stacked:true},y:{stacked:true}},plugins:{legend:{position:'bottom'}}}});
   box.querySelectorAll('[data-p]').forEach(x=>x.onchange=e=>{P[e.target.dataset.p]=e.target.value;renderPeriod(box)});
 }
+// Form submissions vs Odoo: is every form reaching a card? (needs `forms` in the n8n feed)
+async function renderForms(box){
+  const f=await cached('forms');
+  if(!f.available){box.innerHTML=card('Form submissions vs Odoo','<div class="note">Not connected yet: the n8n webhook needs to return the form sheet (Site-Assessments Leads, tab Main) as <code>forms</code>, header row first. Then this checks every form against Odoo daily.</div>');return}
+  const miss=f.byStatus['No card in Odoo']||0,q=f._prev,pm=q?(q.byStatus['No card in Odoo']||0):null,w=periodDates();
+  const csv='/api/forms-missing.csv?'+new URLSearchParams({...(w?{from:w[0],to:w[1]}:{}),...(market?{market}:{})});
+  box.innerHTML=card('Form submissions vs Odoo',`<div class="grid kpis">${kpi('Form submissions',n0(f.total),q?vs(f.total,q.total):'')}${kpi('Reached Odoo (new card)',n0(f.byStatus['New card']||0),'card within 2 days')}${kpi('Person already in Odoo',n0((f.byStatus['Existing card (person already in Odoo)']||0)+(f.byStatus['Card created later']||0)),'existing card or a later one')}${kpi('<span class="down">No card in Odoo</span>',`<span class="${miss?'down':''}">${n0(miss)}</span>`,(q?vs(miss,pm)+' · ':'')+Object.entries(f.missingBySync).map(([k,v])=>`${esc(k)} ${n0(v)}`).join(' · '))}</div>
+  <div class="grid two">${card('Per day: forms and forms with no card',canvas('c-forms'))}${card(`Forms with no card in Odoo (${n0(miss)})`,`<div class="filters"><button onclick="location.href='${csv}'">Export CSV</button></div>`+tbl(f.missing,[['Date',r=>`<span class="mono">${esc(r.date)}</span>`],['Name',r=>esc(r.name)],['Contact',r=>`<span class="sub">${esc(r.mobile)}<br>${esc(r.email)}</span>`],['Source',r=>esc(r.source||'–')],['Sync',r=>`<span class="${r.sync==='sent'?'':'down'}">${esc(r.sync)}</span>`],['Row',r=>r.row,'r']],100))}</div>`);
+  mk('c-forms',{type:'bar',data:{labels:f.days.map(x=>x.day),datasets:[{label:'Forms',data:f.days.map(x=>x.forms-x.missing),backgroundColor:col(0)},{label:'No card in Odoo',data:f.days.map(x=>x.missing),backgroundColor:col(3)}]},options:{scales:{x:{stacked:true},y:{stacked:true}},plugins:{legend:{position:'bottom'}}}});
+}
 R.overview=async el=>{
   const s=await cached('summary'),t=s.totals,pt=s._prev?s._prev.totals:null,w=s._window;
   const h=s.historical,g=k=>pt?vs(t[k],pt[k]):'';
   const ser=s.series||{unit:'month',points:[]};
-  el.innerHTML=`<div id="period"></div><h3 style="margin:18px 0 10px">${w?`Selected period ${esc(w.from)} → ${esc(w.to)}`:'All time'} (${scope==='native'?'native':scope})</h3>
+  el.innerHTML=`<div id="period"></div><div id="forms"></div><h3 style="margin:18px 0 10px">${w?`Selected period ${esc(w.from)} → ${esc(w.to)}`:'All time'} (${scope==='native'?'native':scope})</h3>
   <div class="grid kpis">${kpi('Leads',n0(t.total),g('total')||(scope==='native'?'native leads':''))}${kpi('Lost',n0(t.lost),g('lost')||'inactive + reason')}${kpi('Pending',n0(t.open),g('open')||'open, not converted')}${kpi('Converted',n0(t.converted),g('converted')||'Stage 20-22 or Won')}${kpi('Conversion rate',t.rate+'%',pt?`${pt.rate}% the previous period`:'converted / leads')}</div>
   <div class="grid two">${card(`Leads per ${ser.unit}`,canvas('c-month')+'<div class="note">By lead date: Created on for Odoo cards, Created at for imported cards.</div>')}${card(w?'This period vs the previous one':'By year',canvas('c-year'))}</div>
   ${!w?card('Historical (imported) leads',h.total?`<div class="grid kpis" style="margin:0">${kpi('Imported',n0(h.total),n0(h.native)+' native leads')}${kpi('With a Created at date',n0(h.withRealDate),esc((h.realFrom||'').slice(0,10))+' to '+esc((h.realTo||'').slice(0,10)))}</div><div class="note">Imported cards (lost reason "Historical", and the 2026-09-25 sheet import) are dated by Created at. Their outcomes come from the contract sheets. Use the Data scope menu to browse them.</div>`:'<div class="note">No historical leads in this scope.</div>'):''}`;
@@ -191,6 +201,7 @@ R.overview=async el=>{
   else mk('c-year',{type:'bar',data:{labels:s.byYear.map(y=>y.year),datasets:[
     {label:'Total',data:s.byYear.map(y=>y.total),backgroundColor:col(0)},{label:'Converted',data:s.byYear.map(y=>y.converted),backgroundColor:col(2)},{label:'Lost',data:s.byYear.map(y=>y.lost),backgroundColor:col(3)}]}});
   await renderPeriod($('#period'));
+  await renderForms($('#forms'));
 };
 
 function dual(id,rows,limit=15){

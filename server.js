@@ -102,6 +102,18 @@ app.get('/api/refresh', (_req, res) => {
 });
 app.get('/api/period', route((d, req) => A.period(d.all, req.query), { prev: false }));
 app.get('/api/compare', route((d, req) => A.compare(d.leads, req.query, d.win)));
+app.get('/api/forms', route((d) => A.forms(d.all, d.sheet, d.win)));
+const FM_COLS = ['date', 'name', 'mobile', 'email', 'source', 'medium', 'odoo', 'sync', 'status', 'row'];
+app.get('/api/forms-missing.csv', (req, res) => {
+  const d = current();
+  if (!d) return notReady(res);
+  const s = scoped(d, req);
+  const r = A.forms(s.all, d.sheet, s.win);
+  if (!r.available) return res.status(503).json({ error: 'form submissions are not in the n8n feed yet' });
+  const esc = (v) => { const x = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x; };
+  const csv = [FM_COLS.join(','), ...r.missing.map((x) => FM_COLS.map((c) => esc(x[c])).join(','))].join('\n');
+  res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="forms-missing-in-odoo.csv"' }).send('\ufeff' + csv);
+});
 app.get('/api/summary', route((d) => A.summary(d.leads, d.all, d.win)));
 app.get('/api/sources', route((d) => A.sources(d.leads)));
 app.get('/api/journey', route((d) => A.journey(d.leads)));
