@@ -245,6 +245,18 @@ Working notes so a new session can pick up where the last one stopped.
 - Owner decision: Finance rows with Sugimoto fee "$0" use Professional Fees (as now). Open: Sugimoto fee on the 123
   combined SparkBridge files.
 
+## Drive check of disputed contracts (2026-10-27)
+- Contract folders (SparkBridge - Finance, SugimotoVisa - Finance) name files consistently: "... Signed ...",
+  "receipt N - $amount - <contract no> - <name>", "payment N ...", "Invoice ...". Files moved in 2025-10-30 carry that
+  day as created time; their modified time is the original upload day.
+- 23 contracts where sheet and Odoo disagree on signing/payment: Drive sides with Odoo in 11, with the sheet in 7, shows
+  neither (only a draft, or nothing under the number) in 5. Neither source alone is reliable, so "furthest step wins"
+  is not safe either (one sheet "partially paid" has only a draft in Drive).
+- Proposed: have n8n list the contract folders' file names into the feed; the dashboard then reads signed and paid
+  (and the paid month) from Drive.
+- Changes-only Odoo sync (branch incremental-sync, main merged in): live test not run yet, the session's permission
+  check blocked it.
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).
