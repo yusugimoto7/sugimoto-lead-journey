@@ -37,5 +37,11 @@ conversion and the import card is left out as a duplicate. Signed contracts with
 Dates come from n8n as display text. Real date cells display MM/DD/YYYY; a first part > 12 is DD/MM; both parts <= 12
 is read as MM/DD unless that is in the future. Odoo's ISO dates are preferred wherever the card has them.
 
+## Serving under another site's path (e.g. leads-dashboard-icz4.onrender.com/journey)
+The page uses relative API paths, so it works at the root or under any path. On the other Render service (static
+site) add, in Settings > Redirects/Rewrites (or `routes` in its render.yaml):
+`/journey` -> `/journey/` (Redirect), and `/journey/*` -> `https://sugimoto-lead-journey.onrender.com/*` (Rewrite).
+The password prompt (DASHBOARD_PASSWORD) still applies, because the page shows lead names and contacts.
+
 ## Offline test
 `npm run fake-odoo` starts a synthetic Odoo on :8069 (`ODOO_DB=testdb ODOO_USERNAME=tester ODOO_API_KEY=key`).

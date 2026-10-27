@@ -206,6 +206,11 @@ Working notes so a new session can pick up where the last one stopped.
   all in memory), notes cut to 600 chars, `cf` keeps only filled fields, `--max-old-space-size=360` in npm start.
   Measured locally: first sync peak 240 MB, refresh peak 353 MB.
 
+## Hosting under leads-dashboard-icz4 (2026-10-27)
+- Manager wants Lead Journey on leads-dashboard-icz4.onrender.com like /contracts. That site is a static site on
+  another account/repo (not visible here). Plan: Render rewrite /journey/* -> this service; page now uses relative
+  API paths (tested through a local stand-in proxy). Needs the rewrite rule added on the icz4 service.
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).

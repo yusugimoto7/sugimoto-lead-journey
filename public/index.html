@@ -81,6 +81,9 @@ dl{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:0}dt{color:v
 </main>
 <dialog id="dlg"></dialog>
 <script>
+// Served at the root or under a path such as /journey (Render rewrite on another domain): API calls are relative, so
+// the page URL must end with a slash for them to resolve under that path.
+if(!location.pathname.endsWith('/')&&!/\.[a-z]+$/i.test(location.pathname))history.replaceState(null,'',location.pathname+'/'+location.search+location.hash);
 const TABS=[['overview','Overview'],['sources','Lead Sources'],['journey','Lead Journey'],['segments','Segments'],['lost','Lost Leads'],['sales','Sales Performance'],['deep','Deep Analysis'],['contracts','Contracts'],['revenue','Revenue check'],['retarget','Retargeting'],['leads','All Leads']];
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -109,12 +112,12 @@ let market='';try{market=localStorage.getItem('market')||''}catch(e){}
 // Every call carries the scope and, unless it is "All time", the selected window (lead date: Created on / Created at).
 async function api(p){
   const w=periodDates(),q=new URLSearchParams({scope});if(market)q.set('market',market);
-  if(w&&!/[?&]from=/.test(p)&&!p.startsWith('/api/status')){q.set('from',w[0]);q.set('to',w[1])}
+  if(w&&!/[?&]from=/.test(p)&&!p.startsWith('api/status')){q.set('from',w[0]);q.set('to',w[1])}
   const r=await fetch(p+(p.includes('?')?'&':'?')+q);const t=await r.text();let j=null;try{j=JSON.parse(t)}catch(e){}
   if(!r.ok||!j){const e=new Error(j&&j.error||`Server answered ${r.status} ${r.statusText||''}`.trim());e.syncing=!!(j&&j.syncing)||r.status===502&&!j||r.status===504;throw e}
   return j}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-async function cached(k){const key=k+'|'+market+'|'+(periodDates()||['all']).join('~');return store[key]||(store[key]=await api('/api/'+k))}
+async function cached(k){const key=k+'|'+market+'|'+(periodDates()||['all']).join('~');return store[key]||(store[key]=await api('api/'+k))}
 function col(i){return getComputedStyle(document.documentElement).getPropertyValue('--c'+((i%5)+1)).trim()}
 function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
 function mk(id,cfg){if(charts[id])charts[id].destroy();
@@ -159,7 +162,7 @@ async function renderPeriod(box){
   try{localStorage.setItem('period',JSON.stringify(P))}catch(e){}
   const [from,to]=periodDates()||[isoDay(new Date(Date.now()-29*864e5)),isoDay(new Date())];
   const q=new URLSearchParams({from,to,basis:P.basis,dim:P.dim,source:P.source,medium:P.medium});
-  const d=await api('/api/period?'+q);
+  const d=await api('api/period?'+q);
   const delta=(a,b)=>vs(a,b);
   const shown=[...MAIN_B,...['Other'].filter(b=>d.current[b]||d.previous[b])];
   const opt=(k,label,opts,cur)=>`<select data-p="${k}"><option value="">${label}</option>${opts.map(o=>`<option ${cur===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
@@ -178,7 +181,7 @@ async function renderForms(box){
   const f=await cached('forms');
   if(!f.available){box.innerHTML=card('Form submissions vs Odoo','<div class="note">Not connected yet: the n8n webhook needs to return the form sheet (Site-Assessments Leads, tab Main) as <code>forms</code>, header row first. Then this checks every form against Odoo daily.</div>');return}
   const miss=f.byStatus['No card in Odoo']||0,q=f._prev,pm=q?(q.byStatus['No card in Odoo']||0):null,w=periodDates();
-  const csv='/api/forms-missing.csv?'+new URLSearchParams({...(w?{from:w[0],to:w[1]}:{}),...(market?{market}:{})});
+  const csv='api/forms-missing.csv?'+new URLSearchParams({...(w?{from:w[0],to:w[1]}:{}),...(market?{market}:{})});
   box.innerHTML=card('Form submissions vs Odoo',`<div class="grid kpis">${kpi('Form submissions',n0(f.total),q?vs(f.total,q.total):'')}${kpi('Reached Odoo (new card)',n0(f.byStatus['New card']||0),'card within 2 days')}${kpi('Person already in Odoo',n0((f.byStatus['Existing card (person already in Odoo)']||0)+(f.byStatus['Card created later']||0)),'existing card or a later one')}${kpi('<span class="down">No card in Odoo</span>',`<span class="${miss?'down':''}">${n0(miss)}</span>`,(q?vs(miss,pm)+' · ':'')+Object.entries(f.missingBySync).map(([k,v])=>`${esc(k)} ${n0(v)}`).join(' · '))}</div>
   <div class="grid two">${card('Per day: forms and forms with no card',canvas('c-forms'))}${card(`Forms with no card in Odoo (${n0(miss)})`,`<div class="filters"><button onclick="location.href='${csv}'">Export CSV</button></div>`+tbl(f.missing,[['Date',r=>`<span class="mono">${esc(r.date)}</span>`],['Name',r=>esc(r.name)],['Contact',r=>`<span class="sub">${esc(r.mobile)}<br>${esc(r.email)}</span>`],['Source',r=>esc(r.source||'–')],['Sync',r=>`<span class="${r.sync==='sent'?'':'down'}">${esc(r.sync)}</span>`],['Row',r=>r.row,'r']],100))}</div>`);
   mk('c-forms',{type:'bar',data:{labels:f.days.map(x=>x.day),datasets:[{label:'Forms',data:f.days.map(x=>x.forms-x.missing),backgroundColor:col(0)},{label:'No card in Odoo',data:f.days.map(x=>x.missing),backgroundColor:col(3)}]},options:{scales:{x:{stacked:true},y:{stacked:true}},plugins:{legend:{position:'bottom'}}}});
@@ -245,7 +248,7 @@ R.journey=async el=>{
 const CMPS={dim:'path',values:''};
 const CMPL={path:'Immigration path (lead)',advisor:"Consultant's path",budget:'Budget tier',market:'Market',source:'Source',medium:'Medium'};
 async function renderCompare(box){
-  const d=await api('/api/compare?'+new URLSearchParams({dim:CMPS.dim,...(CMPS.values?{values:CMPS.values}:{})}));
+  const d=await api('api/compare?'+new URLSearchParams({dim:CMPS.dim,...(CMPS.values?{values:CMPS.values}:{})}));
   const pv=d._prev?byName([d._prev.total,...d._prev.items]):null;
   const rows=[d.total,...d.items];
   box.innerHTML=card('Compare',`<div class="filters"><select id="cmp-dim">${Object.entries(CMPL).map(([k,v])=>`<option value="${k}" ${d.dim===k?'selected':''}>${esc(v)}</option>`).join('')}</select><span class="sub">Pick values to compare with all leads of the period:</span></div>
@@ -286,7 +289,7 @@ R.contracts=async el=>{
   const cut=(rows,label)=>`<div class="scroll"><table><tr><th>${label}</th>${cols.slice(0,8).map(x=>`<th class="r">${x[0]}</th>`).join('')}</tr>${rows.slice(0,25).map(r=>`<tr><td>${esc(r.name??'(none)')}</td>${cols.slice(0,8).map(x=>`<td class="r">${x[1](r)}</td>`).join('')}</tr>`).join('')}</table></div>`;
   const list=c.rows.filter(r=>(!CS.category||r.category===CS.category)&&(!CS.step||r.step===CS.step));
   const STEPL={draft_sent:'Draft sent',contract_sent:'Main contract sent',signed:'Signed',terminated:'Terminated',invoice_sent:'Invoice sent'};
-  const csv='/api/contracts-sent.csv?'+new URLSearchParams({...(w?{from:w[0],to:w[1]}:{}),...(market?{market}:{})});
+  const csv='api/contracts-sent.csv?'+new URLSearchParams({...(w?{from:w[0],to:w[1]}:{}),...(market?{market}:{})});
   el.innerHTML=feedNote(c)+`<div class="note">${w?`Contracts issued ${esc(w[0])} → ${esc(w[1])}, compared with the window before. `:''}Lead → contract / signed = days from the lead's date (Created on; Created at for imported cards) to the contract's issue / signing date, as medians. Value = professional fees from the sheets on signed contracts.</div>
   <div class="grid kpis">${kpi('Contracts sent',n0(t.sent),g('sent')||`${n0(t.drafts)} drafts · ${n0(t.mainSent)} main`)}${kpi('Signed',n0(t.signed),g('signed')||`${t.rate}% of sent`)}${kpi('Sign rate',t.rate+'%',q?`${q.rate}% the previous period`:'')}${kpi('Lead → contract',dd(t.medLeadToSent),q?`${dd(q.medLeadToSent)} the previous period`:'median')}${kpi('Contract → signed',dd(t.medSentToSigned),q?`${dd(q.medSentToSigned)} the previous period`:'median')}${kpi('Lead → signed',dd(t.medLeadToSigned),q?`${dd(q.medLeadToSigned)} the previous period`:'median')}${kpi('Signed value CAD',money(t.valueCAD,'CAD'),q?vs(t.valueCAD,q.valueCAD):'')}${kpi('Signed value EUR',money(t.valueEUR,'EUR'),q?vs(t.valueEUR,q.valueEUR):'')}</div>
   ${card('Contracts by category and type',catTable)}
@@ -333,7 +336,7 @@ R.revenue=async el=>{
 };
 const RT={step:'',user:'',status:'',budget:''};
 R.retarget=async el=>{
-  const c=await cached('retargeting'),q=c._prev,pw=periodDates(),csvHref='/api/retargeting.csv?'+new URLSearchParams({...(pw?{from:pw[0],to:pw[1]}:{}),...(market?{market}:{}),scope});
+  const c=await cached('retargeting'),q=c._prev,pw=periodDates(),csvHref='api/retargeting.csv?'+new URLSearchParams({...(pw?{from:pw[0],to:pw[1]}:{}),...(market?{market}:{}),scope});
   const rows=c.rows.filter(r=>(!RT.step||r.stepLabel===RT.step)&&(!RT.user||(r.user||'(none)')===RT.user)&&(!RT.status||r.status===RT.status)&&(!RT.budget||r.budgetTier===RT.budget));
   const sel=(k,l,opts)=>`<select data-k="${k}"><option value="">${l}</option>${opts.map(o=>`<option ${RT[k]===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
   el.innerHTML=`<div class="note">${c._window?`Draft or main contract issued ${esc(c._window.from)} → ${esc(c._window.to)}. `:''}<b>Drafts and main contracts.</b> People who received a draft or the main contract and never signed, one row per person (a person who signed on any card is left out). Draft sent first, newest first. Draft date = contract issued date in the sheets, else Odoo "Contract sent on".</div>
@@ -349,12 +352,12 @@ const AU={age:'',quality:'',budget:'',path:'',advisor:'',status:''};
 const AUL={age:'Age',quality:'Card quality',budget:'Budget tier',path:'Immigration path (lead)',advisor:"Consultant's path",status:'Odoo status'};
 async function renderAudience(box){
   const q=new URLSearchParams(Object.entries(AU).filter(([,v])=>v));
-  const a=await api('/api/audience?'+q);
+  const a=await api('api/audience?'+q);
   const w=periodDates(),csvq=new URLSearchParams(q);if(w){csvq.set('from',w[0]);csvq.set('to',w[1])}csvq.set('scope',scope);if(market)csvq.set('market',market);
   const sel=k=>`<select data-a="${k}"><option value="">${AUL[k]}: all</option>${a.cuts[k].map(o=>`<option value="${esc(o.name)}" ${AU[k]===o.name?'selected':''}>${esc(o.name)} (${n0(o.n)})</option>`).join('')}</select>`;
   const cutCard=k=>card(AUL[k],`<div class="scroll"><table><tr><th>${AUL[k]}</th><th class="r">Leads</th></tr>${a.cuts[k].slice(0,15).map(o=>`<tr class="click" data-a="${k}" data-v="${esc(o.name)}" style="${AU[k]===o.name?'font-weight:600':''}"><td>${esc(o.name)}</td><td class="r">${n0(o.n)}</td></tr>`).join('')}</table></div>`);
   box.innerHTML=`<h3 style="margin:0 0 6px">Audience: all leads that have not signed</h3><div class="note">Leads of the selected period (by lead date) that are not signed, whatever their stage. Each cut counts within the other filters; click a row to filter. Card quality = the Quality field; consultant's path = the Immigration Path selection staff set on the card (Canada / Europe).</div>
-  <div class="filters">${Object.keys(AUL).map(sel).join('')}<button id="au-clear">Clear</button><button onclick="location.href='/api/audience.csv?${csvq}'">Download CSV (${n0(a.total)})</button></div>
+  <div class="filters">${Object.keys(AUL).map(sel).join('')}<button id="au-clear">Clear</button><button onclick="location.href='api/audience.csv?${csvq}'">Download CSV (${n0(a.total)})</button></div>
   <div class="grid kpis">${kpi('Matching leads',n0(a.total),`of ${n0(a.pool)} unsigned leads in the period`)}</div>
   <div class="grid two">${cutCard('age')}${cutCard('quality')}</div><div class="grid two">${cutCard('budget')}${cutCard('status')}</div><div class="grid two">${cutCard('path')}${cutCard('advisor')}</div>
   ${card(`Leads (${n0(a.total)})`,tbl(a.rows,[['Odoo',r=>oLink(a.odoo_url,r.id)],['Lead',r=>`${esc(r.name)}<div class="sub">${esc(r.partner||'')}</div>`],['Contact',r=>`<span class="sub">${esc(r.email||'')}<br>${esc(r.phone||'')}</span>`],['Age',r=>r.age??'–','r'],['Quality',r=>esc(r.quality||'–')],['Budget',r=>esc(r.budgetTier||'–')],['Path',r=>`${esc(r.path||'–')}${r.advisorPath?`<div class="sub">consultant: ${esc(r.advisorPath)}</div>`:''}`],['Stage / status',r=>`${esc(r.stage)}<div class="sub">${esc(r.status)}</div>`],['Salesperson',r=>esc(r.user||'–')]],300))}`;
@@ -402,14 +405,14 @@ R.leads=async el=>{
     el.innerHTML=`<div class="filters" id="lf"></div><div class="card"><div id="lsum" class="note"></div><div class="scroll"><table id="ltab"></table></div><div class="pager" id="lpg"></div></div>`;
   }
   const qs=new URLSearchParams({...F,size:50});
-  const r=await api('/api/leads?'+qs);
+  const r=await api('api/leads?'+qs);
   const fa=r.facets,sel=(k,l,opts)=>`<select data-k="${k}"><option value="">${l}</option>${opts.map(o=>`<option ${F[k]===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
   const fl=$('#lf');
   if(!fl.dataset.built){fl.dataset.built=1;
     fl.innerHTML=`<input id="lq" placeholder="Search name, email, phone, ID" value="${esc(F.q)}">`+sel('status','Status',fa.status)+sel('stage','Stage',fa.stage)+sel('year','Year',fa.year)+sel('source','Source',fa.source)+sel('referrer','Referred by',fa.referrer)+sel('sheet','Contract sheet',fa.sheet)+sel('user','Salesperson',fa.user)+sel('reason','Lost reason',fa.reason)+`<button id="lcsv">Export CSV</button>`;
     let tm;$('#lq').oninput=e=>{clearTimeout(tm);tm=setTimeout(()=>{F.q=e.target.value;F.page=1;R.leads(el)},300)};
     fl.querySelectorAll('select').forEach(s=>s.onchange=e=>{F[e.target.dataset.k]=e.target.value;F.page=1;R.leads(el)});
-    $('#lcsv').onclick=()=>{const p=new URLSearchParams(F);p.delete('page');p.set('scope',scope);const w=periodDates();if(w){p.set('from',w[0]);p.set('to',w[1])}if(market)p.set('market',market);location.href='/api/leads.csv?'+p};
+    $('#lcsv').onclick=()=>{const p=new URLSearchParams(F);p.delete('page');p.set('scope',scope);const w=periodDates();if(w){p.set('from',w[0]);p.set('to',w[1])}if(market)p.set('market',market);location.href='api/leads.csv?'+p};
   }
   $('#lsum').textContent=`${n0(r.total)} leads match · ${n0(r.summary.converted)} converted · ${n0(r.summary.lost)} lost · ${n0(r.summary.open)} open`;
   const th=(k,l,c='')=>`<th class="${c}" data-s="${k}" style="cursor:pointer">${l}${F.sort===k?(F.dir==='asc'?' ▲':' ▼'):''}</th>`;
@@ -444,7 +447,7 @@ async function show(tab){
   }
 }
 async function status(){
-  try{const s=await api('/api/status');
+  try{const s=await api('api/status');
     $('#status').textContent=(s.last_sync?`${n0(s.native_leads)} native + ${n0(s.historical_leads)} historical leads · synced ${Math.round(s.cache_age_seconds/60)} min ago`:'No data yet')+(s.syncing?' · syncing…':'')+(s.last_error?' · last sync error: '+s.last_error:'');
     if(s.syncing)setTimeout(status,5000);
     return s;
@@ -454,8 +457,8 @@ $('#tabs').innerHTML=TABS.map(([k,l])=>`<button data-t="${k}">${l}</button>`).jo
 $('#tabs').onclick=e=>{if(e.target.dataset.t)show(e.target.dataset.t)};
 $('#refresh').onclick=async()=>{const b=$('#refresh');b.disabled=true;b.textContent='Refreshing…';
   try{
-    const before=(await api('/api/status')).last_sync;
-    await api('/api/refresh');
+    const before=(await api('api/status')).last_sync;
+    await api('api/refresh');
     for(let i=0;i<200;i++){await sleep(3000);const s=await status();
       if(s&&!s.syncing){if(s.last_error&&s.last_sync===before)throw new Error(s.last_error);break}}
     Object.keys(store).forEach(k=>delete store[k]);document.querySelectorAll('section').forEach(s=>{s.innerHTML='';delete s.dataset.init});
