@@ -147,8 +147,10 @@ app.get('/api/contracts-sent.csv', (req, res) => {
   const csv = [CS_COLS.join(','), ...r.rows.map((x) => CS_COLS.map((c) => esc(x[c])).join(','))].join('\n');
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="contracts-sent.csv"' }).send('\ufeff' + csv);
 });
-// Rows follow the scope (native / historical / all) and market; who has signed is checked across every card.
-app.get('/api/retargeting', route((d) => ({ ...A.retargeting(d.inScope, d.win, d.everyone), odoo_url: baseUrl() })));
+// Owner: drafts on historical (imported, archived) cards are retargeted too, so the list ignores the native/historical
+// switch and follows only the market. Who has signed is checked across every card.
+const retargetPool = (s) => s.all.filter((l) => !l.duplicate);
+app.get('/api/retargeting', route((d) => ({ ...A.retargeting(retargetPool(d), d.win, d.everyone), odoo_url: baseUrl() })));
 // Meta custom-audience upload: email and phone only, one person per row (Meta's own column names).
 function sendMeta(res, rows, file) {
   const seen = new Set();
@@ -169,7 +171,7 @@ app.get('/api/retargeting.csv', (req, res) => {
   if (!d) return notReady(res);
   const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const s = scoped(d, req);
-  const rows = A.retargeting(s.inScope, s.win, s.everyone).rows;
+  const rows = A.retargeting(retargetPool(s), s.win, s.everyone).rows;
   if (req.query.format === 'meta') return sendMeta(res, rows, 'retargeting-meta.csv');
   const csv = [RT_COLS.join(','), ...rows.map((r) => RT_COLS.map((c) => esc(r[c])).join(','))].join('\n');
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="retargeting-drafts.csv"' }).send('\ufeff' + csv);
