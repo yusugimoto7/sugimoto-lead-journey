@@ -83,6 +83,7 @@ app.get('/api/status', (_req, res) => {
     contracts_feed: d && d.sheet ? { read_at: d.sheet.generatedAt, live: d.sheet.live, error: d.sheet.error, rows: d.sheet.rows.length } : null,
     last_sync: d ? new Date(d.fetchedAt).toISOString() : null,
     cache_age_seconds: d ? Math.round((Date.now() - d.fetchedAt) / 1000) : null,
+    last_sync_detail: d ? d.sync : null,
     cache_ttl_seconds: CACHE_MS / 1000,
     syncing: !!state.promise,
     last_error: state.error,
@@ -96,8 +97,8 @@ app.get('/api/status', (_req, res) => {
   });
 });
 app.get('/api/fields', route((d) => ({ contract_related: d.det.contract, detected: { contractType: d.det.contractType, contractValue: d.det.contractValue, segments: d.det.segments } })));
-app.get('/api/refresh', (_req, res) => {
-  startLoad(true); // runs in the background; poll /api/status (syncing / last_sync)
+app.get('/api/refresh', (req, res) => {
+  startLoad(true, req.query.full === '1'); // runs in the background; poll /api/status (syncing / last_sync)
   res.status(202).json({ started: true, syncing: true });
 });
 app.get('/api/period', route((d, req) => A.period(d.all, req.query), { prev: false }));
