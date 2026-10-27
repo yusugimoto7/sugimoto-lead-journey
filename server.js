@@ -52,7 +52,7 @@ const scoped = (d, req) => {
     .filter((l) => !market || l.market === market);
   const all = market ? d.leads.filter((l) => l.market === market) : d.leads;
   const win = windowOf(req.query);
-  return { ...d, leads: win ? inScope.filter(inWin(win)) : inScope, inScope, all, scope, win, market };
+  return { ...d, leads: win ? inScope.filter(inWin(win)) : inScope, inScope, all, everyone: d.leads, scope, win, market };
 };
 const route = (fn, { prev = true } = {}) => (req, res) => {
   const d = current();
@@ -124,13 +124,15 @@ app.get('/api/diagnostics', route((d) => A.diagnostics(d.all, d.det), { prev: fa
 app.get('/api/contracts', route((d) => ({ ...A.contracts(d.all, d.sheet, d.win, d.market), odoo_url: baseUrl() })));
 app.get('/api/revenue-check', route((d) => ({ ...A.revenueCheck(d.all, d.sheet, d.win, d.market), odoo_url: baseUrl() })));
 app.get('/api/contracts-sent', route((d) => ({ ...A.contractsSent(d.all, d.sheet, d.win, d.market), odoo_url: baseUrl() })));
-app.get('/api/audience', route((d, req) => { const a = A.audience(d.leads, req.query); delete a.allRows; return { ...a, odoo_url: baseUrl() }; }, { prev: false }));
+app.get('/api/audience', route((d, req) => { const a = A.audience(d.leads, req.query, d.everyone); delete a.allRows; return { ...a, odoo_url: baseUrl() }; }, { prev: false }));
 const AUD_COLS = ['name', 'partner', 'email', 'phone', 'age', 'quality', 'budgetTier', 'path', 'advisorPath', 'stage', 'status', 'lostReason', 'user', 'source', 'created', 'id'];
 app.get('/api/audience.csv', (req, res) => {
   const d = current();
   if (!d) return notReady(res);
   const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const rows = A.audience(scoped(d, req).leads, req.query).allRows.map(A.audienceRow);
+  const s = scoped(d, req);
+  const rows = A.audience(s.leads, req.query, s.everyone).allRows.map(A.audienceRow);
+  if (req.query.format === 'meta') return sendMeta(res, rows, 'audience-meta.csv');
   const csv = [AUD_COLS.join(','), ...rows.map((r) => AUD_COLS.map((c) => esc(r[c])).join(','))].join('\n');
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="audience.csv"' }).send('\ufeff' + csv);
 });
@@ -145,14 +147,30 @@ app.get('/api/contracts-sent.csv', (req, res) => {
   const csv = [CS_COLS.join(','), ...r.rows.map((x) => CS_COLS.map((c) => esc(x[c])).join(','))].join('\n');
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="contracts-sent.csv"' }).send('\ufeff' + csv);
 });
-app.get('/api/retargeting', route((d) => ({ ...A.retargeting(d.all, d.win), odoo_url: baseUrl() })));
+// Rows follow the scope (native / historical / all) and market; who has signed is checked across every card.
+app.get('/api/retargeting', route((d) => ({ ...A.retargeting(d.inScope, d.win, d.everyone), odoo_url: baseUrl() })));
+// Meta custom-audience upload: email and phone only, one person per row (Meta's own column names).
+function sendMeta(res, rows, file) {
+  const seen = new Set();
+  const lines = ['email,phone'];
+  for (const r of rows) {
+    const email = String(r.email || '').trim().toLowerCase().split(/[\s,;]+/).find((e) => e.includes('@')) || '';
+    const phone = A.metaPhone(r.phone);
+    const k = `${email}|${phone}`;
+    if ((!email && !phone) || seen.has(k)) continue;
+    seen.add(k);
+    lines.push(`${email.replace(/[",]/g, '')},${phone}`);
+  }
+  res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${file}"` }).send(lines.join('\n'));
+}
 const RT_COLS = ['stepLabel', 'draftOn', 'name', 'partner', 'email', 'phone', 'user', 'stage', 'status', 'lostReason', 'budgetTier', 'contractType', 'fee', 'currency', 'source', 'created', 'updated', 'id'];
 app.get('/api/retargeting.csv', (req, res) => {
   const d = current();
   if (!d) return notReady(res);
   const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const s = scoped(d, req);
-  const rows = A.retargeting(s.all, s.win).rows;
+  const rows = A.retargeting(s.inScope, s.win, s.everyone).rows;
+  if (req.query.format === 'meta') return sendMeta(res, rows, 'retargeting-meta.csv');
   const csv = [RT_COLS.join(','), ...rows.map((r) => RT_COLS.map((c) => esc(r[c])).join(','))].join('\n');
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="retargeting-drafts.csv"' }).send('\ufeff' + csv);
 });

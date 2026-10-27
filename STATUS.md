@@ -225,6 +225,19 @@ Working notes so a new session can pick up where the last one stopped.
 - icz4 counts each company's contract separately (SG 1,579 incl. 516 SG halves of SparkBridge files); this
   dashboard counts a client once, which is what conversion needs.
 
+## Retargeting tab (2026-10-27)
+- Was: the draft list ignored the scope switch (native showed 413 historical people), people were matched on email only
+  (else phone), the audience counted cards not people and kept people who had signed on another card, fees came from
+  Odoo only, 113 rows had no draft date.
+- Now: one row per person (cards sharing an email, phone or mobile, transitively), anyone who signed on any card left
+  out, scope and market followed, sheet fee first, draft date falls back to the day the card entered stage 13/18, a
+  lost-reason filter, and "Meta audience CSV" exports (email + phone in international form, one person per row).
+- Native, all time: 430 people with a draft or contract (was 849 mixed); audience 14,753 people (16,362 cards).
+- Phones: about half the form cards store an Iranian mobile behind Turkey's code (90 9xx…); the export reads them as
+  +98. Some historical numbers (10 digits starting with 1) cannot be read and are left blank.
+- Owner decision: Finance rows with Sugimoto fee "$0" use Professional Fees (as now). Open: Sugimoto fee on the 123
+  combined SparkBridge files.
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).
