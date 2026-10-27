@@ -211,6 +211,20 @@ Working notes so a new session can pick up where the last one stopped.
   another account/repo (not visible here). Plan: Render rewrite /journey/* -> this service; page now uses relative
   API paths (tested through a local stand-in proxy). Needs the rewrite rule added on the icz4 service.
 
+## Checked against icz4 /contracts (2026-10-27, same n8n feed, its own reconciliation code run on it)
+- Fixed: the Finance sheet writes dates DD/MM; ambiguous ones (both parts <= 12) were read MM/DD. Against the linked
+  Odoo cards' dates, Finance dates that agree went from 984 to 1,505 of 1,637. SparkBridge stays MM/DD (242 vs 67).
+- Same signed set apart from: 11 contracts where Odoo is further than the sheet (icz4 takes the furthest; here the
+  Odoo stage rule usually counts them anyway) and ProBono (signed here, "other" there).
+- Revenue, waiting for the owner (not changed):
+  1. 123 signed combined files (SUV, 2023-2025) carry a "Sugimoto professional Fee" only on the SparkBridge row; their
+     Sugimoto No. is in ALL Numbers for just 14 of 537 rows. icz4 counts it (~807k CAD); this dashboard does not.
+  2. 154 signed Finance rows (SP/TRV, mostly 2023-2024) have Sugimoto fee "$0" and Professional Fees > 0. Here the
+     Professional Fees count (~293k CAD); icz4 shows 0.
+  3. icz4 uses the Odoo quotation's net fee (after discount) for 33 newer contracts; here the sheet's gross fee.
+- icz4 counts each company's contract separately (SG 1,579 incl. 516 SG halves of SparkBridge files); this
+  dashboard counts a client once, which is what conversion needs.
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).
