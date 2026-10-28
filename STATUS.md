@@ -257,6 +257,15 @@ Working notes so a new session can pick up where the last one stopped.
 - Changes-only Odoo sync (branch incremental-sync, main merged in): live test not run yet, the session's permission
   check blocked it.
 
+## Retargeting by service and persona (2026-10-28)
+- Service = the contract's Type in the sheets, else Odoo Service Agreement (x_service, newer cards), Contract Type list
+  (x_studio_contract_type_1) or the old free-text Contract Type. Spellings of one service are grouped into 16 names
+  (serviceOf in lib/contracts.js); the original value is kept and shown under it.
+- Persona from Odoo: age, budget tier, immigration path (form, as written), Working (x_studio_working_2), marital status,
+  education, language level. There is no income field in Odoo; budget and work experience are the nearest.
+- Every filter on the draft list and the audience is multi-select; counts are within the other filters; CSV and Meta
+  exports follow the filters. Historical cards mostly have no persona fields (about 420 of 837 show "not set").
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).

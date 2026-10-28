@@ -63,7 +63,7 @@ const route = (fn, { prev = true } = {}) => (req, res) => {
     if (s.win && prev && body && typeof body === 'object') {
       body._window = { from: s.win.from, to: s.win.to, span: s.win.span, prevFrom: s.win.prev.from, prevTo: s.win.prev.to };
       body._prev = fn({ ...s, leads: s.inScope.filter(inWin(s.win.prev)), win: s.win.prev }, req);
-      if (body._prev) { delete body._prev.rows; delete body._prev.issues; } // growth needs the aggregates only
+      if (body._prev) { delete body._prev.rows; delete body._prev.issues; delete body._prev.facets; } // growth needs the aggregates only
     }
     res.json(body);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -125,7 +125,7 @@ app.get('/api/contracts', route((d) => ({ ...A.contracts(d.all, d.sheet, d.win, 
 app.get('/api/revenue-check', route((d) => ({ ...A.revenueCheck(d.all, d.sheet, d.win, d.market), odoo_url: baseUrl() })));
 app.get('/api/contracts-sent', route((d) => ({ ...A.contractsSent(d.all, d.sheet, d.win, d.market), odoo_url: baseUrl() })));
 app.get('/api/audience', route((d, req) => { const a = A.audience(d.leads, req.query, d.everyone); delete a.allRows; return { ...a, odoo_url: baseUrl() }; }, { prev: false }));
-const AUD_COLS = ['name', 'partner', 'email', 'phone', 'age', 'quality', 'budgetTier', 'path', 'advisorPath', 'stage', 'status', 'lostReason', 'user', 'source', 'created', 'id'];
+const AUD_COLS = ['name', 'partner', 'email', 'phone', 'age', 'quality', 'budgetTier', 'path', 'advisorPath', 'employment', 'marital', 'education', 'language', 'stage', 'status', 'lostReason', 'user', 'source', 'created', 'id'];
 app.get('/api/audience.csv', (req, res) => {
   const d = current();
   if (!d) return notReady(res);
@@ -150,7 +150,7 @@ app.get('/api/contracts-sent.csv', (req, res) => {
 // Owner: drafts on historical (imported, archived) cards are retargeted too, so the list ignores the native/historical
 // switch and follows only the market. Who has signed is checked across every card.
 const retargetPool = (s) => s.all.filter((l) => !l.duplicate);
-app.get('/api/retargeting', route((d) => ({ ...A.retargeting(retargetPool(d), d.win, d.everyone), odoo_url: baseUrl() })));
+app.get('/api/retargeting', route((d, req) => ({ ...A.retargeting(retargetPool(d), d.win, d.everyone, req.query), odoo_url: baseUrl() })));
 // Meta custom-audience upload: email and phone only, one person per row (Meta's own column names).
 function sendMeta(res, rows, file) {
   const seen = new Set();
@@ -165,13 +165,13 @@ function sendMeta(res, rows, file) {
   }
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${file}"` }).send(lines.join('\n'));
 }
-const RT_COLS = ['stepLabel', 'draftOn', 'name', 'partner', 'email', 'phone', 'user', 'stage', 'status', 'lostReason', 'budgetTier', 'contractType', 'fee', 'currency', 'source', 'created', 'updated', 'id'];
+const RT_COLS = ['stepLabel', 'draftOn', 'name', 'partner', 'email', 'phone', 'service', 'serviceRaw', 'age', 'budgetTier', 'path', 'employment', 'marital', 'education', 'language', 'market', 'user', 'stage', 'status', 'lostReason', 'fee', 'currency', 'source', 'created', 'updated', 'id'];
 app.get('/api/retargeting.csv', (req, res) => {
   const d = current();
   if (!d) return notReady(res);
   const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const s = scoped(d, req);
-  const rows = A.retargeting(retargetPool(s), s.win, s.everyone).rows;
+  const rows = A.retargeting(retargetPool(s), s.win, s.everyone, req.query).rows;
   if (req.query.format === 'meta') return sendMeta(res, rows, 'retargeting-meta.csv');
   const csv = [RT_COLS.join(','), ...rows.map((r) => RT_COLS.map((c) => esc(r[c])).join(','))].join('\n');
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="retargeting-drafts.csv"' }).send('\ufeff' + csv);

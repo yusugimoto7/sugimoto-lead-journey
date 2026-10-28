@@ -49,6 +49,10 @@ td.r,th.r{text-align:right;font-family:'DM Mono',monospace}
 .warn{background:rgba(179,65,58,.1);border:1px solid var(--bad);color:var(--bad);padding:10px 14px;border-radius:8px;margin-bottom:14px;display:none}
 .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 .filters input{min-width:200px}.filters select{max-width:170px}
+details.ms{position:relative}details.ms summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;background:var(--card)}
+details.ms summary::-webkit-details-marker{display:none}details.ms[open] summary{border-color:rgba(var(--accent-rgb),.7)}
+.ms-box{position:absolute;z-index:20;top:calc(100% + 4px);left:0;min-width:240px;max-width:360px;max-height:320px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.ms-box label{display:grid;grid-template-columns:16px 1fr auto;gap:8px;align-items:start;padding:5px 6px;font-size:12.5px;cursor:pointer;border-radius:6px}.ms-box input{min-width:0;width:14px;height:14px;margin:2px 0 0}.ms-box label:hover{background:rgba(var(--accent-rgb),.08)}.ms-box .sub{font-family:'DM Mono',monospace}
 .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px}
 tr.click{cursor:pointer}tr.click:hover td{background:rgba(var(--accent-rgb),.06)}
 dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);max-width:640px;width:calc(100% - 32px);padding:20px}
@@ -334,36 +338,48 @@ R.revenue=async el=>{
   ${Object.entries(groups).map(([k,rows])=>card(`${esc(k)} (${n0(rows.length)})`,tbl(rows,I))).join('')}
   ${card(`Unusual fee for the contract type (${n0(c.outliers.length)})`,tbl(c.outliers,[['Contract',r=>`${esc(r.company==='SG'?'Finance':'SparkBridge')} <span class="mono">${esc(r.no||'')}</span> · row ${r.row}`],['Odoo',r=>link(r.id)],['Type',r=>esc(r.type||'–')],['Fee',r=>cur(r.fee,r.currency),'r'],['Type median',r=>cur(r.typeMedian,r.currency),'r']]))}`;
 };
-const RT={step:'',user:'',status:'',budget:'',lost:''};
+// Retargeting filters: several values per dimension (multi-select); counts are within the other filters.
+const RT={};let rtOpen=null;
+const RTL={service:'Service',age:'Age',budget:'Budget tier',path:'Immigration path (form)',employment:'Work experience',marital:'Marital status',education:'Education',language:'Language',market:'Market',step:'Step',user:'Salesperson',status:'Odoo status',lost:'Lost reason',kind:'Card'};
+function msel(S,L,open,dim,opts){const sel=S[dim]||[];
+  return `<details class="ms" data-dim="${dim}"${open===dim?' open':''}><summary>${esc(L[dim])}${sel.length?` <b>(${sel.length})</b>`:''}</summary><div class="ms-box">${opts.map(o=>`<label><input type="checkbox" data-d="${dim}" value="${esc(o.name)}" ${sel.includes(o.name)?'checked':''}> ${esc(o.name)} <span class="sub">${n0(o.n)}</span></label>`).join('')||'<span class="sub">none</span>'}</div></details>`}
+// Keeps one dropdown open across re-renders and toggles a value per checkbox.
+function wireMsel(box,S,getOpen,setOpen,rerender){
+  box.querySelectorAll('details.ms').forEach(d=>d.addEventListener('toggle',()=>{if(d.open){setOpen(d.dataset.dim);box.querySelectorAll('details.ms').forEach(o=>{if(o!==d)o.open=false})}else if(getOpen()===d.dataset.dim)setOpen(null)}));
+  box.querySelectorAll('input[data-d]').forEach(x=>x.onchange=()=>{const k=x.dataset.d,cur=new Set(S[k]||[]);x.checked?cur.add(x.value):cur.delete(x.value);S[k]=[...cur];rerender()});
+}
 R.retarget=async el=>{
-  const c=await cached('retargeting'),q=c._prev,pw=periodDates(),csvQ=new URLSearchParams({...(pw?{from:pw[0],to:pw[1]}:{}),...(market?{market}:{}),scope}),csvHref='api/retargeting.csv?'+csvQ,metaHref=csvHref+'&format=meta';
-  const rows=c.rows.filter(r=>(!RT.step||r.stepLabel===RT.step)&&(!RT.user||(r.user||'(none)')===RT.user)&&(!RT.status||r.status===RT.status)&&(!RT.budget||r.budgetTier===RT.budget)&&(!RT.lost||(r.lostReason||'(none)')===RT.lost));
-  const sel=(k,l,opts)=>`<select data-k="${k}"><option value="">${l}</option>${opts.map(o=>`<option ${RT[k]===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
-  el.innerHTML=`<div class="note">${c._window?`Draft or main contract issued ${esc(c._window.from)} → ${esc(c._window.to)}. `:''}<b>Drafts and main contracts.</b> People who received a draft or the main contract and never signed, one row per person: cards sharing an email or phone are one person, and a person who signed on any card is left out. Historical (imported, archived) cards are always included, whatever the Data scope switch says; the market switch applies. Draft sent first, newest first. Draft date = contract issued date in the sheets, else Odoo "Contract sent on", else the day the card entered the contract stage${c.noDate?` (${n0(c.noDate)} have none and drop out when a period is chosen)`:''}. Fee = the contract's fee in the sheets, else Odoo.</div>
-  <div class="grid kpis">${kpi('People to retarget',n0(c.total),q?vs(c.total,q.total):'')}${Object.entries(c.byStep).map(([k,v])=>kpi(k,n0(v),q?vs(v,q.byStep[k]||0):'')).join('')}${kpi('Still open in Odoo',n0(c.byStatus.Open||0),`${n0(c.byStatus['Archived (no reason)']||0)} archived · ${n0(c.byStatus.Lost||0)} lost`)}${kpi('From historical cards',n0(c.byKind['Historical card']||0),`${n0(c.byKind['Native card']||0)} from native cards`)}${kpi('No email or phone',n0(c.unreachable),'cannot be matched in an ad audience')}</div>
-  <div class="filters">${sel('step','Step',Object.keys(c.byStep))}${sel('user','Salesperson',Object.keys(c.bySalesperson).sort())}${sel('status','Odoo status',Object.keys(c.byStatus))}${sel('budget','Budget tier',Object.keys(c.byBudget).sort())}${sel('lost','Lost reason',Object.keys(c.byLost).sort())}<button onclick="location.href='${csvHref}'">Export CSV</button><button onclick="location.href='${metaHref}'" title="email and phone in international form, one person per row, for a Meta custom audience">Meta audience CSV</button></div>
-  ${card(`List (${n0(rows.length)})`,tbl(rows,[['Step',r=>esc(r.stepLabel)],['Draft date',r=>`<span class="mono">${esc(r.draftOn||'–')}</span>`],['Odoo',r=>oLink(c.odoo_url,r.id)],['Lead',r=>`${esc(r.name)}<div class="sub">${esc(r.partner||'')}</div>`],['Contact',r=>`<span class="sub">${esc(r.email||'')}<br>${esc(r.phone||'')}</span>`],['Salesperson',r=>esc(r.user||'–')],['Stage / status',r=>`${esc(r.stage)}<div class="sub">${esc(r.status)}${r.lostReason?' · '+esc(r.lostReason):''}</div>`],['Budget',r=>esc(r.budgetTier||'–')],['Contract',r=>`${esc(r.contractType||'–')}<div class="sub">${r.fee?(r.currency==='EUR'?'€':'C$')+n0(r.fee):''}</div>`]],300))}`;
-  el.querySelectorAll('select[data-k]').forEach(x=>x.onchange=e=>{RT[e.target.dataset.k]=e.target.value;R.retarget(el)});
+  const fq=new URLSearchParams(Object.entries(RT).filter(([,v])=>v.length).map(([k,v])=>[k,v.join('|')]));
+  const c=await api('api/retargeting?'+fq),q=c._prev,pw=periodDates();
+  const csvQ=new URLSearchParams(fq);if(pw){csvQ.set('from',pw[0]);csvQ.set('to',pw[1])}if(market)csvQ.set('market',market);csvQ.set('scope',scope);
+  const csvHref='api/retargeting.csv?'+csvQ,metaHref=csvHref+'&format=meta',rows=c.rows;
+  el.innerHTML=`<div class="note">${c._window?`Draft or main contract issued ${esc(c._window.from)} → ${esc(c._window.to)}. `:''}<b>Drafts and main contracts.</b> People who received a draft or the main contract and never signed, one row per person: cards sharing an email or phone are one person, and a person who signed on any card is left out. Historical (imported, archived) cards are always included, whatever the Data scope switch says; the market switch applies. Draft date = contract issued date in the sheets, else Odoo "Contract sent on", else the day the card entered the contract stage${c.noDate?` (${n0(c.noDate)} have none and drop out when a period is chosen)`:''}. <b>Service</b> = the contract's type in the sheets, else Odoo's Service Agreement / Contract Type, with spellings of the same service grouped (the original is shown under it). Persona fields are what the person gave on the form. Choose several values in any filter; each count is within the other filters, and both CSV exports follow the filters.</div>
+  <div class="filters">${Object.keys(RTL).map(k=>msel(RT,RTL,rtOpen,k,c.facets[k]||[])).join('')}<button id="rt-clear">Clear filters</button></div>
+  <div class="grid kpis">${kpi('Selected people',n0(c.total),`of ${n0(c.all)} with a draft or contract${q?' · '+vs(c.total,q.total):''}`)}${Object.entries(c.byStep).map(([k,v])=>kpi(k,n0(v))).join('')}${kpi('From historical cards',n0(c.byKind['Historical card']||0),`${n0(c.byKind['Native card']||0)} from native cards`)}${kpi('No email or phone',n0(c.unreachable),'cannot be matched in an ad audience')}</div>
+  <div class="filters"><button onclick="location.href='${csvHref}'">Export CSV (${n0(c.total)})</button><button onclick="location.href='${metaHref}'" title="email and phone in international form, one person per row, for a Meta custom audience">Meta audience CSV</button></div>
+  ${card(`List (${n0(rows.length)})`,tbl(rows,[['Step',r=>`${esc(r.stepLabel)}<div class="sub mono">${esc(r.draftOn||'–')}</div>`],['Odoo',r=>oLink(c.odoo_url,r.id)],['Lead',r=>`${esc(r.name)}<div class="sub">${esc(r.email||'')} ${esc(r.phone||'')}</div>`],['Service',r=>`${esc(r.service)}<div class="sub">${esc(r.serviceRaw||'')}${r.fee?` · ${r.currency==='EUR'?'€':'C$'}${n0(r.fee)}`:''}</div>`],['Persona',r=>`${r.age??'–'} · ${esc(r.budgetTier||'no budget')}<div class="sub">${[r.employment,r.marital,r.education,r.language].filter(Boolean).map(esc).join(' · ')}</div>`],['Path (form)',r=>esc(r.path||'–')],['Salesperson',r=>esc(r.user||'–')],['Stage / status',r=>`${esc(r.stage)}<div class="sub">${esc(r.status)}${r.lostReason?' · '+esc(r.lostReason):''}</div>`]],300))}`;
+  wireMsel(el.querySelector('.filters'),RT,()=>rtOpen,v=>{rtOpen=v},()=>R.retarget(el));
+  $('#rt-clear').onclick=()=>{Object.keys(RT).forEach(k=>delete RT[k]);rtOpen=null;R.retarget(el)};
   el.insertAdjacentHTML('beforeend','<div id="aud" style="margin-top:18px"></div>');
   await renderAudience($('#aud'));
 };
 // Audience: every unsigned lead of the period, cut by age, card quality, budget, the lead's path and the consultant's.
-const AU={age:'',quality:'',budget:'',path:'',advisor:'',status:''};
-const AUL={age:'Age',quality:'Card quality',budget:'Budget tier',path:'Immigration path (lead)',advisor:"Consultant's path",status:'Odoo status'};
+const AU={};let auOpen=null;
+const AUL={age:'Age',quality:'Card quality',budget:'Budget tier',path:'Immigration path (lead)',advisor:"Consultant's path",employment:'Work experience',marital:'Marital status',education:'Education',language:'Language',status:'Odoo status'};
 async function renderAudience(box){
-  const q=new URLSearchParams(Object.entries(AU).filter(([,v])=>v));
+  const q=new URLSearchParams(Object.entries(AU).filter(([,v])=>v&&v.length).map(([k,v])=>[k,v.join('|')]));
   const a=await api('api/audience?'+q);
   const w=periodDates(),csvq=new URLSearchParams(q);if(w){csvq.set('from',w[0]);csvq.set('to',w[1])}csvq.set('scope',scope);if(market)csvq.set('market',market);
-  const sel=k=>`<select data-a="${k}"><option value="">${AUL[k]}: all</option>${a.cuts[k].map(o=>`<option value="${esc(o.name)}" ${AU[k]===o.name?'selected':''}>${esc(o.name)} (${n0(o.n)})</option>`).join('')}</select>`;
-  const cutCard=k=>card(AUL[k],`<div class="scroll"><table><tr><th>${AUL[k]}</th><th class="r">People</th></tr>${a.cuts[k].slice(0,15).map(o=>`<tr class="click" data-a="${k}" data-v="${esc(o.name)}" style="${AU[k]===o.name?'font-weight:600':''}"><td>${esc(o.name)}</td><td class="r">${n0(o.n)}</td></tr>`).join('')}</table></div>`);
+  const sel=k=>msel(AU,AUL,auOpen,k,a.cuts[k]);
+  const cutCard=k=>card(AUL[k],`<div class="scroll"><table><tr><th>${AUL[k]}</th><th class="r">People</th></tr>${a.cuts[k].slice(0,15).map(o=>`<tr class="click" data-a="${k}" data-v="${esc(o.name)}" style="${(AU[k]||[]).includes(o.name)?'font-weight:600':''}"><td>${esc(o.name)}</td><td class="r">${n0(o.n)}</td></tr>`).join('')}</table></div>`);
   box.innerHTML=`<h3 style="margin:0 0 6px">Audience: everyone who has not signed</h3><div class="note">People with a lead in the selected period (by lead date) who have not signed on any card, whatever their stage: one row per person (their newest card; cards sharing an email or phone are one person), people with no email or phone left out. Each cut counts within the other filters; click a row to filter. Card quality = the Quality field; consultant's path = the Immigration Path selection staff set on the card (Canada / Europe).</div>
   <div class="filters">${Object.keys(AUL).map(sel).join('')}<button id="au-clear">Clear</button><button onclick="location.href='api/audience.csv?${csvq}'">Download CSV (${n0(a.total)})</button><button onclick="location.href='api/audience.csv?${csvq}&format=meta'">Meta audience CSV</button></div>
   <div class="grid kpis">${kpi('Matching people',n0(a.total),`of ${n0(a.pool)} unsigned people in the period (${n0(a.cards)} cards)`)}</div>
-  <div class="grid two">${cutCard('age')}${cutCard('quality')}</div><div class="grid two">${cutCard('budget')}${cutCard('status')}</div><div class="grid two">${cutCard('path')}${cutCard('advisor')}</div>
+  <div class="grid two">${cutCard('age')}${cutCard('quality')}</div><div class="grid two">${cutCard('budget')}${cutCard('status')}</div><div class="grid two">${cutCard('path')}${cutCard('advisor')}</div><div class="grid two">${cutCard('employment')}${cutCard('marital')}</div><div class="grid two">${cutCard('education')}${cutCard('language')}</div>
   ${card(`People (${n0(a.total)})`,tbl(a.rows,[['Odoo',r=>oLink(a.odoo_url,r.id)],['Lead',r=>`${esc(r.name)}<div class="sub">${esc(r.partner||'')}</div>`],['Contact',r=>`<span class="sub">${esc(r.email||'')}<br>${esc(r.phone||'')}</span>`],['Age',r=>r.age??'–','r'],['Quality',r=>esc(r.quality||'–')],['Budget',r=>esc(r.budgetTier||'–')],['Path',r=>`${esc(r.path||'–')}${r.advisorPath?`<div class="sub">consultant: ${esc(r.advisorPath)}</div>`:''}`],['Stage / status',r=>`${esc(r.stage)}<div class="sub">${esc(r.status)}</div>`],['Salesperson',r=>esc(r.user||'–')]],300))}`;
-  box.querySelectorAll('select[data-a]').forEach(x=>x.onchange=e=>{AU[e.target.dataset.a]=e.target.value;renderAudience(box)});
-  box.querySelectorAll('tr[data-a]').forEach(x=>x.onclick=()=>{const k=x.dataset.a,v=x.dataset.v;AU[k]=AU[k]===v?'':v;renderAudience(box)});
-  $('#au-clear').onclick=()=>{Object.keys(AU).forEach(k=>AU[k]='');renderAudience(box)};
+  wireMsel(box.querySelector('.filters'),AU,()=>auOpen,v=>{auOpen=v},()=>renderAudience(box));
+  box.querySelectorAll('tr[data-a]').forEach(x=>x.onclick=()=>{const k=x.dataset.a,v=x.dataset.v,cur=new Set(AU[k]||[]);cur.has(v)?cur.delete(v):cur.add(v);AU[k]=[...cur];renderAudience(box)});
+  $('#au-clear').onclick=()=>{Object.keys(AU).forEach(k=>delete AU[k]);auOpen=null;renderAudience(box)};
 }
 R.lost=async el=>{
   const l=await cached('lost'),p=l._prev;
