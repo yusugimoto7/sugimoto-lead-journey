@@ -240,6 +240,14 @@ Working notes so a new session can pick up where the last one stopped.
   shapes the Meta export.
 - Odoo stages behind the contract sheets: 309 cards (14 historical). Import file prepared outside the repo (145 safe,
   164 to check first); the dashboard's Odoo client stays read-only.
+- Owner chose to write all 309, then (after the side effects below) to write nothing for now. Odoo automations on a
+  stage change: 20 sends a Trello webhook; 20/21/22/25/Won stamp today as the signed (and paid) date when empty; 21/22/25
+  set the contract status to paid and update the finance sheet; 22 runs the execution handoff (projects and tasks);
+  13 and 12 are gated (Service Agreement + a sent quotation; full client file), bypassable only with skip_stage_gate;
+  active cards younger than 30 days get a call-centre Survey task. An Excel import triggers the same rules.
+  Safe path if wanted later: signed -> Won with the sheet's real dates filled first; 18 and 24 as planned.
+- Every contract in the sheets has an Odoo card: 8 seemed missing because the card carries the person's later
+  contract number, or the number as a decimal ("251015.0", now matched).
 - Phones: about half the form cards store an Iranian mobile behind Turkey's code (90 9xx…); the export reads them as
   +98. Some historical numbers (10 digits starting with 1) cannot be read and are left blank.
 - Owner decision: Finance rows with Sugimoto fee "$0" use Professional Fees (as now). Open: Sugimoto fee on the 123
