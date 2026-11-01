@@ -6,7 +6,7 @@
 <title>Sugimoto Lead Journey</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="vendor/chart.umd.js"></script>
 <style>
 :root{--bg:#f6f6f4;--card:#fff;--ink:#16181d;--mute:#6b7280;--line:#e5e5e0;--accent:#2f4b7c;--accent-rgb:47,75,124;
 --c1:#2f4b7c;--c2:#c2792b;--c3:#3f8f7a;--c4:#a84a5c;--c5:#7a6aa8;--good:#2e7d5b;--bad:#b3413a}
@@ -124,13 +124,14 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function cached(k){const key=k+'|'+market+'|'+(periodDates()||['all']).join('~');return store[key]||(store[key]=await api('api/'+k))}
 function col(i){return getComputedStyle(document.documentElement).getPropertyValue('--c'+((i%5)+1)).trim()}
 function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
-function mk(id,cfg){if(charts[id])charts[id].destroy();
+// Without the chart library the tables still render; only the charts are left out.
+function mk(id,cfg){if(typeof Chart==='undefined')return;if(charts[id])charts[id].destroy();
   cfg.options=Object.assign({responsive:true,maintainAspectRatio:false},cfg.options||{});
   charts[id]=new Chart(document.getElementById(id),cfg)}
 const kpi=(l,v,s='')=>`<div class="card kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
 const card=(t,body)=>`<div class="card"><h3>${t}</h3>${body}</div>`;
 const canvas=id=>`<div class="chart"><canvas id="${id}"></canvas></div>`;
-function applyChartTheme(){Chart.defaults.color=css('--mute');Chart.defaults.borderColor=css('--line');Chart.defaults.font.family='Inter'}
+function applyChartTheme(){if(typeof Chart==='undefined')return;Chart.defaults.color=css('--mute');Chart.defaults.borderColor=css('--line');Chart.defaults.font.family='Inter'}
 
 function heat(m,label){
   if(!m.rows.length)return '<div class="note">No data.</div>';

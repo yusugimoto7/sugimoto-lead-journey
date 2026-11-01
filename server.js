@@ -22,6 +22,8 @@ if (process.env.DASHBOARD_PASSWORD) {
   console.warn('[security] DASHBOARD_PASSWORD not set: the dashboard is open to anyone with the URL');
 }
 
+// Chart.js is served from here, not a CDN: on some phone networks the CDN did not load and every tab failed.
+app.get('/vendor/chart.umd.js', (_req, res) => res.sendFile(path.join(__dirname, 'node_modules', 'chart.js', 'dist', 'chart.umd.js')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Answers from cache. With no data yet, replies 503 {syncing:true} (or 502 with the Odoo error) so the
