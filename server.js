@@ -219,4 +219,6 @@ app.get('/api/leads.csv', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Dashboard on http://localhost:${PORT}`);
   startLoad(); // warm the cache on boot
+  // Refresh in the background too, so a visitor never waits for one; skipped while a sync is already running.
+  setInterval(() => { if (state.data) startLoad(); }, CACHE_MS).unref();
 });
