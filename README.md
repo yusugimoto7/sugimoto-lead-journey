@@ -9,7 +9,7 @@ cp .env.example .env   # fill ODOO_DB, ODOO_USERNAME, ODOO_API_KEY
 npm install
 npm start
 ```
-On startup the server runs `fields_get` on `crm.lead`, logs every field containing "contract", then fetches all leads created since 2022-01-01 (500 per page). Results are cached in memory for 30 minutes (`/api/refresh` busts the cache).
+On startup the server runs `fields_get` on `crm.lead`, logs every field containing "contract", then fetches all leads created since 2022-01-01 (500 per page). Results are cached in memory and refreshed every 5 minutes (`REFRESH_MINUTES`) with only the cards Odoo changed since the last read (`write_date`); a full read runs on boot and every `FULL_SYNC_HOURS` (6). `/api/refresh` refreshes now, `/api/refresh?full=1` reads everything.
 
 ## Rules
 - Only `authenticate`, `fields_get` and `search_read` are ever sent to Odoo (other methods are blocked in `lib/odoo.js`).
