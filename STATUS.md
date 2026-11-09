@@ -274,6 +274,19 @@ Working notes so a new session can pick up where the last one stopped.
 - Every filter on the draft list and the audience is multi-select; counts are within the other filters; CSV and Meta
   exports follow the filters. Historical cards mostly have no persona fields (about 420 of 837 show "not set").
 
+## Speed, memory, Sales and Contracts (2026-11-09)
+- Odoo holds 75,055 cards: a second historical import (28,552 cards, 28-31 Oct, user Abaan) after the first
+  (27,274, 12-13 Oct). A refresh then ran out of heap on Render and restarted the instance.
+- Memory: descriptions are no longer kept (read from Odoo when a lead opens, /api/lead/:id/notes), repeated texts and
+  empty objects are shared: heap 181 -> 105 MB per dataset, refresh peak 184 MB.
+- Sync: changes only (write_date) every 5 minutes in the background (REFRESH_MINUTES), 2.5 s instead of 70 s; a full
+  read on boot and every 6 h. Tested equal to a full read. A sleeping free instance still needs ~1 min to wake and
+  ~70 s for the first read: keep it awake with an external ping to /healthz, or a paid instance.
+- Sales: archived Odoo users are "former staff". Finding: Yasamin Madahi (archived, last login Feb 2026) still
+  gets new cards (36 since Aug, last 7 Nov); EU Department likewise (last 14 Oct).
+- Growth on a previous value under 5 is shown as a count, not a percentage (all tabs).
+- Contracts tab rebuilt around service (serviceOf), status and one breakdown; reconciliation closed at the bottom.
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).
