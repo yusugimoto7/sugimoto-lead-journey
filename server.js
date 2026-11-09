@@ -1,9 +1,9 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
-const { current, startLoad, state, CACHE_MS } = require('./lib/data');
+const { current, startLoad, state, CACHE_MS, htmlToText } = require('./lib/data');
 const A = require('./lib/analytics');
-const { baseUrl } = require('./lib/odoo');
+const { baseUrl, callKw } = require('./lib/odoo');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -177,6 +177,15 @@ app.get('/api/retargeting.csv', (req, res) => {
   if (req.query.format === 'meta') return sendMeta(res, rows, 'retargeting-meta.csv');
   const csv = [RT_COLS.join(','), ...rows.map((r) => RT_COLS.map((c) => esc(r[c])).join(','))].join('\n');
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="retargeting-drafts.csv"' }).send('\ufeff' + csv);
+});
+// A lead's description, read from Odoo when its detail opens (not kept in memory for every card).
+app.get('/api/lead/:id/notes', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
+  try {
+    const rows = await callKw('crm.lead', 'search_read', [[['id', '=', id]]], { fields: ['description'], limit: 1, context: { active_test: false } });
+    res.json({ notes: rows.length ? htmlToText(rows[0].description).slice(0, 4000) : '' });
+  } catch (e) { res.status(502).json({ error: e.message }); }
 });
 app.get('/api/segments', route((d) => A.segments(d.leads, d.det)));
 
