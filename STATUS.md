@@ -240,10 +240,39 @@ Working notes so a new session can pick up where the last one stopped.
   shapes the Meta export.
 - Odoo stages behind the contract sheets: 309 cards (14 historical). Import file prepared outside the repo (145 safe,
   164 to check first); the dashboard's Odoo client stays read-only.
+- Owner chose to write all 309, then (after the side effects below) to write nothing for now. Odoo automations on a
+  stage change: 20 sends a Trello webhook; 20/21/22/25/Won stamp today as the signed (and paid) date when empty; 21/22/25
+  set the contract status to paid and update the finance sheet; 22 runs the execution handoff (projects and tasks);
+  13 and 12 are gated (Service Agreement + a sent quotation; full client file), bypassable only with skip_stage_gate;
+  active cards younger than 30 days get a call-centre Survey task. An Excel import triggers the same rules.
+  Safe path if wanted later: signed -> Won with the sheet's real dates filled first; 18 and 24 as planned.
+- Every contract in the sheets has an Odoo card: 8 seemed missing because the card carries the person's later
+  contract number, or the number as a decimal ("251015.0", now matched).
 - Phones: about half the form cards store an Iranian mobile behind Turkey's code (90 9xx…); the export reads them as
   +98. Some historical numbers (10 digits starting with 1) cannot be read and are left blank.
 - Owner decision: Finance rows with Sugimoto fee "$0" use Professional Fees (as now). Open: Sugimoto fee on the 123
   combined SparkBridge files.
+
+## Drive check of disputed contracts (2026-10-27)
+- Contract folders (SparkBridge - Finance, SugimotoVisa - Finance) name files consistently: "... Signed ...",
+  "receipt N - $amount - <contract no> - <name>", "payment N ...", "Invoice ...". Files moved in 2025-10-30 carry that
+  day as created time; their modified time is the original upload day.
+- 23 contracts where sheet and Odoo disagree on signing/payment: Drive sides with Odoo in 11, with the sheet in 7, shows
+  neither (only a draft, or nothing under the number) in 5. Neither source alone is reliable, so "furthest step wins"
+  is not safe either (one sheet "partially paid" has only a draft in Drive).
+- Proposed: have n8n list the contract folders' file names into the feed; the dashboard then reads signed and paid
+  (and the paid month) from Drive.
+- Changes-only Odoo sync (branch incremental-sync, main merged in): live test not run yet, the session's permission
+  check blocked it.
+
+## Retargeting by service and persona (2026-10-28)
+- Service = the contract's Type in the sheets, else Odoo Service Agreement (x_service, newer cards), Contract Type list
+  (x_studio_contract_type_1) or the old free-text Contract Type. Spellings of one service are grouped into 16 names
+  (serviceOf in lib/contracts.js); the original value is kept and shown under it.
+- Persona from Odoo: age, budget tier, immigration path (form, as written), Working (x_studio_working_2), marital status,
+  education, language level. There is no income field in Odoo; budget and work experience are the nearest.
+- Every filter on the draft list and the audience is multi-select; counts are within the other filters; CSV and Meta
+  exports follow the filters. Historical cards mostly have no persona fields (about 420 of 837 show "not set").
 
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
