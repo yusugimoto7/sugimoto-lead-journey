@@ -291,6 +291,19 @@ Working notes so a new session can pick up where the last one stopped.
   (~30-60 s) plus the first full read (~70 s).
 - All Leads tab removed (owner, 2026-11-11), with its endpoints (/api/leads, /api/leads.csv, /api/lead/:id/notes).
 
+## Static dashboard (2026-11-11)
+- Owner: like the icz4 dashboard, a page that opens at once without waking a server. tools/build-pack.js builds dist/:
+  the page, the chart library, app.js (lib/routes.js + lib/analytics.js bundled for the browser) and data.bin, the
+  loaded data with no name, email or phone (lib/pack.js), gzipped and encrypted (AES-256-GCM, PBKDF2 310k) with
+  PACK_PASSWORD. People are matched across cards with keyed hashes of email/phone (HMAC with PACK_KEY, never shipped).
+  The page asks for the password and computes every tab in the browser: unlock 1.3 s, tab 0.4 s locally.
+- Checked: all 17 answers identical to the server's on 6 query sets (102 of 102); no email in the file; free-text form
+  answers have emails and long numbers replaced (server too).
+- .github/workflows/static.yml builds hourly and publishes to GitHub Pages. Needs repo secrets ODOO_URL, ODOO_DB,
+  ODOO_USERNAME, ODOO_API_KEY, PACK_PASSWORD, PACK_KEY, and Pages set to "GitHub Actions". Render rewrites on the icz4
+  site: /journey/api/* -> this server (CSV / Meta downloads, behind its password), then /journey/* -> the Pages site.
+- The server stays for the downloads; the routes moved to lib/routes.js, shared by both.
+
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
    `sheet_backfill.py` against historical cards so Odoo holds it (needs write access outside this dashboard).

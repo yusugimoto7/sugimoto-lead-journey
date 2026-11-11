@@ -49,6 +49,8 @@ td.r,th.r{text-align:right;font-family:'DM Mono',monospace}
 .warn{background:rgba(179,65,58,.1);border:1px solid var(--bad);color:var(--bad);padding:10px 14px;border-radius:8px;margin-bottom:14px;display:none}
 .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 .filters input{min-width:200px}.filters select{max-width:170px}
+#lock{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:16px}
+#lock form{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:24px;width:100%;max-width:360px}#lock h2{margin:0 0 6px;font-size:18px}#lock input[type=password]{width:100%;box-sizing:border-box}
 details.ms{position:relative}details.ms summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;background:var(--card)}
 details.ms summary::-webkit-details-marker{display:none}details.ms[open] summary{border-color:rgba(var(--accent-rgb),.7)}
 .ms-box{position:absolute;z-index:20;top:calc(100% + 4px);left:0;min-width:240px;max-width:360px;max-height:320px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px;box-shadow:0 6px 24px rgba(0,0,0,.18)}
@@ -68,6 +70,7 @@ tr.click{cursor:pointer}tr.click:hover td{background:rgba(var(--accent-rgb),.06)
 </style>
 </head>
 <body>
+<div id="lock" style="display:none"><form id="lockf"><h2>Sugimoto Lead Journey</h2><p class="sub">Enter the dashboard password.</p><input id="lockpw" type="password" autocomplete="current-password" placeholder="Password" required><label class="sub" style="display:flex;gap:6px;align-items:center;margin:10px 0"><input id="lockrm" type="checkbox" checked style="min-width:0;width:auto"> Remember on this device</label><button type="submit">Open</button><div id="lockerr" class="sub" style="color:var(--bad);margin-top:8px"></div></form></div>
 <header>
   <div><h1>Sugimoto Visa · Lead Journey</h1><div class="sub" id="status">Connecting to Odoo…</div></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><div class="seg" id="market" role="group" aria-label="Market"><button data-m="">All markets</button><button data-m="Canada">Canada</button><button data-m="Europe">Europe</button></div><label class="scope">Data scope <select id="scope" aria-label="Data scope"><option value="native">Native only</option><option value="historical">Historical only</option><option value="all">All leads</option></select></label><button id="refresh">Refresh from Odoo</button><button id="theme" aria-label="Toggle theme">Theme</button></div>
@@ -113,9 +116,29 @@ const store={};let charts={};let current='overview';let scope='native';try{scope
 let market='';try{market=localStorage.getItem('market')||''}catch(e){}
 
 // Every call carries the scope and, unless it is "All time", the selected window (lead date: Created on / Created at).
+// Static build (tools/build-pack.js): the answers come from lib/routes.js run in this page on the decrypted data file;
+// only the CSV / Meta downloads go to the server.
+const STATIC=window.LJ_STATIC||null;let DATA=null;
+async function loadData(pw){
+  const res=await fetch(STATIC.data,{cache:'no-cache'});if(!res.ok)throw new Error('Data file could not be read ('+res.status+')');
+  const buf=new Uint8Array(await res.arrayBuffer()),n=new DataView(buf.buffer).getUint32(0);
+  const head=JSON.parse(new TextDecoder().decode(buf.subarray(4,4+n))),b64=x=>Uint8Array.from(atob(x),c=>c.charCodeAt(0));
+  const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+  const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(head.salt),iterations:head.iterations,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['decrypt']);
+  let gz;try{gz=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64(head.iv)},key,buf.subarray(4+n))}catch(e){throw new Error('Wrong password')}
+  DATA=LJ.decode(JSON.parse(await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).text()));
+}
+function localApi(p){
+  const u=new URL(p,location.href),name=u.pathname.split('/api/').pop(),q=Object.fromEntries(u.searchParams);
+  if(name==='status')return {total_leads:DATA.leads.length,native_leads:DATA.leads.filter(l=>!l.historical).length,historical_leads:DATA.leads.filter(l=>l.historical).length,
+    last_sync:new Date(DATA.fetchedAt).toISOString(),cache_age_seconds:Math.round((Date.now()-DATA.fetchedAt)/1000),syncing:false,static:true};
+  if(!LJ.routes.includes(name))throw new Error('Not available in this view: '+name);
+  return JSON.parse(JSON.stringify(LJ.run(name,DATA,q))); // a fresh copy, as from the server
+}
 async function api(p){
   const w=periodDates(),q=new URLSearchParams({scope});if(market)q.set('market',market);
   if(w&&!/[?&]from=/.test(p)&&!p.startsWith('api/status')){q.set('from',w[0]);q.set('to',w[1])}
+  if(STATIC)return localApi(p+(p.includes('?')?'&':'?')+q);
   const r=await fetch(p+(p.includes('?')?'&':'?')+q);const t=await r.text();let j=null;try{j=JSON.parse(t)}catch(e){}
   if(!r.ok||!j){const e=new Error(j&&j.error||`Server answered ${r.status} ${r.statusText||''}`.trim());e.syncing=!!(j&&j.syncing)||r.status===502&&!j||r.status===504;throw e}
   return j}
@@ -370,7 +393,7 @@ R.retarget=async el=>{
   el.innerHTML=`<div class="note">${c._window?`Draft or main contract issued ${esc(c._window.from)} → ${esc(c._window.to)}. `:''}<b>Drafts and main contracts.</b> People who received a draft or the main contract and never signed, one row per person: cards sharing an email or phone are one person, and a person who signed on or after this draft is left out (a client who signed an earlier contract and then got a draft for another service stays, marked as existing client). Historical (imported, archived) cards are always included, whatever the Data scope switch says; the market switch applies. Draft date = contract issued date in the sheets, else Odoo "Contract sent on", else the day the card entered the contract stage${c.noDate?` (${n0(c.noDate)} have none and drop out when a period is chosen)`:''}. <b>Service</b> = the contract's type in the sheets, else Odoo's Service Agreement / Contract Type, with spellings of the same service grouped (the original is shown under it). Persona fields are what the person gave on the form. Choose several values in any filter; each count is within the other filters, and both CSV exports follow the filters.</div>
   <div class="filters">${Object.keys(RTL).map(k=>msel(RT,RTL,rtOpen,k,c.facets[k]||[])).join('')}<button id="rt-clear">Clear filters</button></div>
   <div class="grid kpis">${kpi('Selected people',n0(c.total),`of ${n0(c.all)} with a draft or contract${q?' · '+vs(c.total,q.total):''}`)}${Object.entries(c.byStep).map(([k,v])=>kpi(k,n0(v))).join('')}${kpi('From historical cards',n0(c.byKind['Historical card']||0),`${n0(c.byKind['Native card']||0)} from native cards`)}${kpi('No email or phone',n0(c.unreachable),'cannot be matched in an ad audience')}</div>
-  <div class="filters"><button onclick="location.href='${csvHref}'">Export CSV (${n0(c.total)})</button><button onclick="location.href='${metaHref}'" title="email and phone in international form, one person per row, for a Meta custom audience">Meta audience CSV</button></div>
+  <div class="filters"><button onclick="location.href='${csvHref}'">Export CSV (${n0(c.total)})</button><button onclick="location.href='${metaHref}'" title="email and phone in international form, one person per row, for a Meta custom audience">Meta audience CSV</button></div>${STATIC?'<div class="note">This page carries no names, emails or phones. The two downloads come from the server, behind its password; if it has been asleep, the file takes about two minutes.</div>':''}
   ${card(`List (${n0(rows.length)})`,tbl(rows,[['Step',r=>`${esc(r.stepLabel)}<div class="sub mono">${esc(r.draftOn||'–')}</div>`],['Odoo',r=>oLink(c.odoo_url,r.id)],['Lead',r=>`${esc(r.name)}${r.existingClient?' <span class="pill">existing client</span>':''}<div class="sub">${esc(r.email||'')} ${esc(r.phone||'')}</div>`],['Service',r=>`${esc(r.service)}<div class="sub">${esc(r.serviceRaw||'')}${r.fee?` · ${r.currency==='EUR'?'€':'C$'}${n0(r.fee)}`:''}</div>`],['Persona',r=>`${r.age??'–'} · ${esc(r.budgetTier||'no budget')}<div class="sub">${[r.employment,r.marital,r.education,r.language].filter(Boolean).map(esc).join(' · ')}</div>`],['Path (form)',r=>esc(r.path||'–')],['Salesperson',r=>esc(r.user||'–')],['Stage / status',r=>`${esc(r.stage)}<div class="sub">${esc(r.status)}${r.lostReason?' · '+esc(r.lostReason):''}</div>`]],300))}`;
   wireMsel(el.querySelector('.filters'),RT,()=>rtOpen,v=>{rtOpen=v},()=>R.retarget(el));
   $('#rt-clear').onclick=()=>{Object.keys(RT).forEach(k=>delete RT[k]);rtOpen=null;R.retarget(el)};
@@ -448,7 +471,7 @@ async function show(tab){
 }
 async function status(){
   try{const s=await api('api/status');
-    $('#status').textContent=(s.last_sync?`${n0(s.native_leads)} native + ${n0(s.historical_leads)} historical leads · synced ${Math.round(s.cache_age_seconds/60)} min ago`:'No data yet')+(s.syncing?' · syncing…':'')+(s.last_error?' · last sync error: '+s.last_error:'');
+    $('#status').textContent=(s.last_sync?`${n0(s.native_leads)} native + ${n0(s.historical_leads)} historical leads · ${s.static?'data from':'synced'} ${s.cache_age_seconds<5400?Math.round(s.cache_age_seconds/60)+' min':Math.round(s.cache_age_seconds/3600)+' h'} ago${s.static?' (updated every hour)':''}`:'No data yet')+(s.syncing?' · syncing…':'')+(s.last_error?' · last sync error: '+s.last_error:'');
     if(s.syncing)setTimeout(status,5000);
     return s;
   }catch(e){$('#status').textContent='Not connected: '+e.message}
@@ -456,6 +479,8 @@ async function status(){
 $('#tabs').innerHTML=TABS.map(([k,l])=>`<button data-t="${k}">${l}</button>`).join('');
 $('#tabs').onclick=e=>{if(e.target.dataset.t)show(e.target.dataset.t)};
 $('#refresh').onclick=async()=>{const b=$('#refresh');b.disabled=true;b.textContent='Refreshing…';
+  if(STATIC){try{await loadData(savedPw());Object.keys(store).forEach(k=>delete store[k]);document.querySelectorAll('section').forEach(s=>{s.innerHTML='';delete s.dataset.init});await show(current);status()}
+    catch(e){$('#err').textContent='Reload failed: '+e.message;$('#err').style.display='block'}b.disabled=false;b.textContent='Reload data';return}
   try{
     const before=(await api('api/status')).last_sync;
     await api('api/refresh');
@@ -470,7 +495,7 @@ function banner(){const b=$('#banner');
   b.textContent=scope==='historical'?'Historical only: imported cards (lost reason Historical, and the 2026-09-25 sheet import), dated by Created at. Signings come from the contract sheets; they are never counted as lost.':'All leads: native Odoo cards (Created on) plus imported cards (Created at). Imported cards are never counted as lost; their signings come from the contract sheets.'}
 $('#scope').value=scope;banner();
 $('#scope').onchange=e=>{scope=e.target.value;try{localStorage.setItem('scope',scope)}catch(x){}banner();renderPbar();
-  Object.keys(store).forEach(k=>delete store[k]);document.querySelectorAll('section').forEach(s=>{s.innerHTML='';delete s.dataset.init});F.page=1;show(current)};
+  Object.keys(store).forEach(k=>delete store[k]);document.querySelectorAll('section').forEach(s=>{s.innerHTML='';delete s.dataset.init});show(current)};
 function setTheme(t){document.documentElement.dataset.theme=t;try{localStorage.setItem('theme',t)}catch(e){}}
 $('#theme').onclick=()=>{setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');show(current)};
 let saved=null;try{saved=localStorage.getItem('theme')}catch(e){}
@@ -480,8 +505,19 @@ document.querySelectorAll('#market button').forEach(b=>b.onclick=()=>{market=b.d
   document.querySelectorAll('section').forEach(x=>{if(x.id!=='t-'+current)x.innerHTML=''});show(current)});
 renderMarket();
 renderPbar();
-status();
-show(TABS.some(t=>t[0]===location.hash.slice(1))?location.hash.slice(1):'overview');
+const start=()=>{status();show(TABS.some(t=>t[0]===location.hash.slice(1))?location.hash.slice(1):'overview')};
+const savedPw=()=>{try{return sessionStorage.getItem('ljpw')||localStorage.getItem('ljpw')}catch(e){return null}};
+if(!STATIC)start();
+else{
+  $('#refresh').textContent='Reload data';
+  const lock=$('#lock'),err=$('#lockerr');
+  const open=async(pw,remember)=>{err.textContent='Opening…';await loadData(pw);
+    try{sessionStorage.setItem('ljpw',pw);if(remember)localStorage.setItem('ljpw',pw);else localStorage.removeItem('ljpw')}catch(e){}
+    lock.style.display='none';start()};
+  $('#lockf').onsubmit=e=>{e.preventDefault();open($('#lockpw').value,$('#lockrm').checked).catch(x=>{err.textContent=x.message})};
+  const pw=savedPw();
+  if(pw)open(pw,!!localStorage.getItem('ljpw')).catch(()=>{lock.style.display='flex';err.textContent=''});else lock.style.display='flex';
+}
 </script>
 </body>
 </html>
