@@ -17,7 +17,7 @@ On startup the server runs `fields_get` on `crm.lead`, logs every field containi
 - Lost = `active=false` and a lost reason set.
 
 ## API
-`/api/status`, `/api/fields`, `/api/refresh`, `/api/summary`, `/api/sources`, `/api/journey`, `/api/lost`, `/api/sales`, `/api/deep`, `/api/segments`, `/api/contracts`, `/api/revenue-check`, `/api/retargeting`, `/api/retargeting.csv`, `/api/leads` (filter/sort/page), `/api/leads.csv`.
+`/api/status`, `/api/fields`, `/api/refresh`, `/api/summary`, `/api/sources`, `/api/journey`, `/api/lost`, `/api/sales`, `/api/deep`, `/api/segments`, `/api/contracts`, `/api/revenue-check`, `/api/retargeting`, `/api/retargeting.csv`, `/api/audience`, `/api/audience.csv`, `/api/contracts-sent`, `/api/contracts-sent.csv` (`.csv` exports take `format=meta` on retargeting and audience).
 
 ## Deploy (Render)
 `render.yaml` is included. Set `ODOO_DB`, `ODOO_USERNAME`, `ODOO_API_KEY` and `DASHBOARD_PASSWORD` in the Render dashboard. The dashboard shows lead names, emails and phones, so set the password.

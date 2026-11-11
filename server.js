@@ -1,9 +1,9 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
-const { current, startLoad, state, CACHE_MS, htmlToText } = require('./lib/data');
+const { current, startLoad, state, CACHE_MS } = require('./lib/data');
 const A = require('./lib/analytics');
-const { baseUrl, callKw } = require('./lib/odoo');
+const { baseUrl } = require('./lib/odoo');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -179,42 +179,7 @@ app.get('/api/retargeting.csv', (req, res) => {
   const csv = [RT_COLS.join(','), ...rows.map((r) => RT_COLS.map((c) => esc(r[c])).join(','))].join('\n');
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="retargeting-drafts.csv"' }).send('\ufeff' + csv);
 });
-// A lead's description, read from Odoo when its detail opens (not kept in memory for every card).
-app.get('/api/lead/:id/notes', async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'bad id' });
-  try {
-    const rows = await callKw('crm.lead', 'search_read', [[['id', '=', id]]], { fields: ['description'], limit: 1, context: { active_test: false } });
-    res.json({ notes: rows.length ? htmlToText(rows[0].description).slice(0, 4000) : '' });
-  } catch (e) { res.status(502).json({ error: e.message }); }
-});
 app.get('/api/segments', route((d) => A.segments(d.leads, d.det)));
-
-// Full lead explorer: server-side filter / sort / paging
-app.get('/api/leads', route((d, req) => {
-  const rows = A.filterLeads(d.leads, req.query);
-  const size = Math.min(Math.max(parseInt(req.query.size, 10) || 50, 1), 200);
-  const pages = Math.max(Math.ceil(rows.length / size), 1);
-  const page = Math.min(Math.max(parseInt(req.query.page, 10) || 1, 1), pages);
-  return {
-    total: rows.length, page, pages, size, facets: A.facets(d.leads), odoo_url: baseUrl(),
-    summary: A.counts(rows), rows: rows.slice((page - 1) * size, page * size),
-  };
-}, { prev: false }));
-
-const CSV_COLS = ['id', 'name', 'partner', 'email', 'phone', 'country', 'created', 'closed', 'status', 'stage', 'phase',
-  'historical', 'user', 'refUser', 'source', 'medium', 'campaign', 'lostReason', 'probability', 'contractType', 'contractValue', 'currency', 'budgetTier', 'sheetStatus', 'sheetSigned'];
-app.get('/api/leads.csv', (req, res) => {
-  const d = current();
-  if (!d) return notReady(res);
-  try {
-    const rows = A.filterLeads(scoped(d, req).leads, req.query)
-      .map((l) => ({ ...l, sheetStatus: l.sheet ? l.sheet.status : '', sheetSigned: l.sheet ? l.sheet.signed : '' }));
-    const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-    const csv = [CSV_COLS.join(','), ...rows.map((r) => CSV_COLS.map((c) => esc(r[c])).join(','))].join('\n');
-    res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="leads.csv"' }).send('﻿' + csv);
-  } catch (e) { res.status(502).json({ error: e.message }); }
-});
 
 app.listen(PORT, () => {
   console.log(`Dashboard on http://localhost:${PORT}`);

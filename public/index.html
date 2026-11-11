@@ -55,9 +55,6 @@ details.ms summary::-webkit-details-marker{display:none}details.ms[open] summary
 .ms-box label{display:grid;grid-template-columns:16px 1fr auto;gap:8px;align-items:start;padding:5px 6px;font-size:12.5px;cursor:pointer;border-radius:6px}.ms-box input{min-width:0;width:14px;height:14px;margin:2px 0 0}.ms-box label:hover{background:rgba(var(--accent-rgb),.08)}.ms-box .sub{font-family:'DM Mono',monospace}
 .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px}
 tr.click{cursor:pointer}tr.click:hover td{background:rgba(var(--accent-rgb),.06)}
-dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);max-width:640px;width:calc(100% - 32px);padding:20px}
-dialog::backdrop{background:rgba(0,0,0,.5)}
-dl{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:0}dt{color:var(--mute)}dd{margin:0;word-break:break-word}
 .pill.Historical{color:var(--mute);border-style:dashed}
 .scope{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mute)}
 .banner{background:rgba(var(--accent-rgb),.1);border:1px solid rgba(var(--accent-rgb),.35);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:12.5px;display:none}
@@ -81,14 +78,14 @@ dl{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:0}dt{color:v
   <div class="warn" id="err"></div><div class="banner" id="banner"></div>
   <section id="t-overview"></section><section id="t-sources"></section><section id="t-journey"></section>
   <section id="t-segments"></section><section id="t-lost"></section><section id="t-sales"></section>
-  <section id="t-deep"></section><section id="t-contracts"></section><section id="t-revenue"></section><section id="t-retarget"></section><section id="t-leads"></section>
+  <section id="t-deep"></section><section id="t-contracts"></section><section id="t-revenue"></section><section id="t-retarget"></section>
 </main>
-<dialog id="dlg"></dialog>
+
 <script>
 // Served at the root or under a path such as /journey (Render rewrite on another domain): API calls are relative, so
 // the page URL must end with a slash for them to resolve under that path.
 if(!location.pathname.endsWith('/')&&!/\.[a-z]+$/i.test(location.pathname))history.replaceState(null,'',location.pathname+'/'+location.search+location.hash);
-const TABS=[['overview','Overview'],['sources','Lead Sources'],['journey','Lead Journey'],['segments','Segments'],['lost','Lost Leads'],['sales','Sales Performance'],['deep','Deep Analysis'],['contracts','Contracts'],['revenue','Revenue check'],['retarget','Retargeting'],['leads','All Leads']];
+const TABS=[['overview','Overview'],['sources','Lead Sources'],['journey','Lead Journey'],['segments','Segments'],['lost','Lost Leads'],['sales','Sales Performance'],['deep','Deep Analysis'],['contracts','Contracts'],['revenue','Revenue check'],['retarget','Retargeting']];
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const n0=v=>v==null?'–':Number(v).toLocaleString('en-US',{maximumFractionDigits:0});
@@ -431,43 +428,9 @@ R.deep=async el=>{
     {label:'Age of open leads',data:t.map(x=>x.avgOpenAge),backgroundColor:col(0)}]}});
 };
 
-// ---- All leads explorer ----
-const F={q:'',status:'',stage:'',year:'',source:'',referrer:'',sheet:'',user:'',reason:'',sort:'created',dir:'desc',page:1};
-R.leads=async el=>{
-  if(!el.dataset.init){
-    el.dataset.init=1;
-    el.innerHTML=`<div class="filters" id="lf"></div><div class="card"><div id="lsum" class="note"></div><div class="scroll"><table id="ltab"></table></div><div class="pager" id="lpg"></div></div>`;
-  }
-  const qs=new URLSearchParams({...F,size:50});
-  const r=await api('api/leads?'+qs);
-  const fa=r.facets,sel=(k,l,opts)=>`<select data-k="${k}"><option value="">${l}</option>${opts.map(o=>`<option ${F[k]===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
-  const fl=$('#lf');
-  if(!fl.dataset.built){fl.dataset.built=1;
-    fl.innerHTML=`<input id="lq" placeholder="Search name, email, phone, ID" value="${esc(F.q)}">`+sel('status','Status',fa.status)+sel('stage','Stage',fa.stage)+sel('year','Year',fa.year)+sel('source','Source',fa.source)+sel('referrer','Referred by',fa.referrer)+sel('sheet','Contract sheet',fa.sheet)+sel('user','Salesperson',fa.user)+sel('reason','Lost reason',fa.reason)+`<button id="lcsv">Export CSV</button>`;
-    let tm;$('#lq').oninput=e=>{clearTimeout(tm);tm=setTimeout(()=>{F.q=e.target.value;F.page=1;R.leads(el)},300)};
-    fl.querySelectorAll('select').forEach(s=>s.onchange=e=>{F[e.target.dataset.k]=e.target.value;F.page=1;R.leads(el)});
-    $('#lcsv').onclick=()=>{const p=new URLSearchParams(F);p.delete('page');p.set('scope',scope);const w=periodDates();if(w){p.set('from',w[0]);p.set('to',w[1])}if(market)p.set('market',market);location.href='api/leads.csv?'+p};
-  }
-  $('#lsum').textContent=`${n0(r.total)} leads match · ${n0(r.summary.converted)} converted · ${n0(r.summary.lost)} lost · ${n0(r.summary.open)} open`;
-  const th=(k,l,c='')=>`<th class="${c}" data-s="${k}" style="cursor:pointer">${l}${F.sort===k?(F.dir==='asc'?' ▲':' ▼'):''}</th>`;
-  $('#ltab').innerHTML=`<tr><th>ID</th>${th('name','Lead')}<th>Contact</th>${th('created','Created')}${th('stage','Stage')}<th>Status</th><th>Salesperson</th><th>Source / Medium / Campaign</th>${th('value','Contract','r')}</tr>`+
-   r.rows.map(l=>`<tr class="click" data-id="${l.id}"><td class="mono">${l.id}</td><td>${esc(l.name)}<div class="sub">${esc(l.partner)}</div></td><td class="sub">${esc(l.email)}<br>${esc(l.phone)}</td><td class="mono">${esc((l.created||'').slice(0,10))}</td><td>${esc(l.stage)}</td><td><span class="pill ${l.status}">${esc(l.status)}</span>${l.lostReason?`<div class="sub">${esc(l.lostReason)}</div>`:''}</td><td>${esc(l.user||'–')}</td><td class="sub">${esc([l.source,l.medium,l.campaign].filter(Boolean).join(' / ')||'–')}</td><td class="r">${l.contractValue&&l.currency?money(l.contractValue,l.currency):''}<div class="sub">${esc(l.contractType||'')}</div></td></tr>`).join('');
-  $('#ltab').querySelectorAll('th[data-s]').forEach(h=>h.onclick=()=>{const k=h.dataset.s;F.dir=F.sort===k&&F.dir==='desc'?'asc':'desc';F.sort=k;R.leads(el)});
-  $('#ltab').querySelectorAll('tr.click').forEach(tr=>tr.onclick=()=>detail(r.rows.find(x=>x.id==tr.dataset.id),r.odoo_url));
-  $('#lpg').innerHTML=`<button ${r.page<=1?'disabled':''} id="pp">Prev</button><span class="mono">${r.page} / ${r.pages}</span><button ${r.page>=r.pages?'disabled':''} id="pn">Next</button>`;
-  $('#pp').onclick=()=>{F.page=r.page-1;R.leads(el)};$('#pn').onclick=()=>{F.page=r.page+1;R.leads(el)};
-};
-function detail(l,odoo){
-  const rows=[['ID',l.id],['Lead',l.name],['Company / name',l.partner],['Email',l.email],['Phone',l.phone],['Country',l.country],['Status',l.status],['Stage',l.stage],['Phase',l.phase],['Probability',l.probability!=null?l.probability+'%':''],['Salesperson',l.user],['Referred by',l.refUser],['Source',l.source],['Medium',l.medium],['Campaign',l.campaign],['Lost reason',l.lostReason],['Contract type',l.contractType],['Contract value',l.contractValue&&l.currency?money(l.contractValue,l.currency):l.contractValue],['Counted in revenue',l.revenueCounted?'Yes':'No'],['Contract sheet',l.sheet?`${l.sheet.status||l.sheet.outcome} · signed ${l.sheet.signed||'–'} · ${(l.sheet.contracts||[]).join(', ')}`:'not in sheets'],['Budget',l.seg.budget],['Budget tier',l.budgetTier],['Immigration path',l.seg.immigration],['Destination',l.seg.destination],['Created',l.created||(l.historical?'unknown (historical)':'')],['Imported at',l.importedAt],['Last updated',l.updated],['Closed',l.closed]];
-  $('#dlg').innerHTML=`<dl>${rows.filter(r=>r[1]!==''&&r[1]!=null).map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl><div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between">${!/^\d+$/.test(String(l.id))?`<span class="sub">${String(l.id).startsWith('form:')?'Form submission, no card in Odoo':'Only in the contract sheets'}</span>`:`<a href="${esc(odoo)}/web#id=${l.id}&model=crm.lead&view_type=form" target="_blank" rel="noopener">Open in Odoo</a>`}<button onclick="document.getElementById('dlg').close()">Close</button></div>`;
-  $('#dlg').showModal();
-  // The description is fetched from Odoo on open; the server does not keep it for every card.
-  if(l.hasNotes&&/^\d+$/.test(String(l.id))){const box=document.createElement('div');box.className='note';box.style.whiteSpace='pre-wrap';box.textContent='Loading notes…';$('#dlg dl').after(box);
-    api(`api/lead/${l.id}/notes`).then(r=>{box.textContent=r.notes?'Notes: '+r.notes:'No notes.'}).catch(e=>{box.textContent='Notes could not be read: '+e.message})}
-}
-
 // ---- shell ----
 async function show(tab){
+  if(!R[tab])tab='overview'; // a tab remembered from an older version may be gone
   current=tab;
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===tab));
   document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id==='t-'+tab));
@@ -509,7 +472,7 @@ $('#scope').value=scope;banner();
 $('#scope').onchange=e=>{scope=e.target.value;try{localStorage.setItem('scope',scope)}catch(x){}banner();renderPbar();
   Object.keys(store).forEach(k=>delete store[k]);document.querySelectorAll('section').forEach(s=>{s.innerHTML='';delete s.dataset.init});F.page=1;show(current)};
 function setTheme(t){document.documentElement.dataset.theme=t;try{localStorage.setItem('theme',t)}catch(e){}}
-$('#theme').onclick=()=>{setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');if(current!=='leads')show(current)};
+$('#theme').onclick=()=>{setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');show(current)};
 let saved=null;try{saved=localStorage.getItem('theme')}catch(e){}
 setTheme(saved||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
 function renderMarket(){document.querySelectorAll('#market button').forEach(b=>b.classList.toggle('on',b.dataset.m===market))}

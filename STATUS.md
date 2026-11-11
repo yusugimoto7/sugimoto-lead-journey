@@ -126,7 +126,7 @@ Working notes so a new session can pick up where the last one stopped.
 - A bar under the tabs (3d / 7d / 2w / 1m / 3m / 6m / 1y / All time / Custom) applies to every tab. Leads are filtered
   by lead date (Created on; Created at for imported cards). With a window, every endpoint also returns `_prev` (the
   window of the same length just before) and `_window`; the UI shows growth % on KPIs and growth tables.
-  Contracts / Revenue check: by signing date. Retargeting: by draft/contract issue date. All Leads + CSVs: filtered.
+  Contracts / Revenue check: by signing date. Retargeting: by draft/contract issue date. CSVs: filtered.
 - Overview: the "What happened in Odoo" block follows the bar (All time -> last 30 days there); the lower section
   is the selected period (KPIs, leads per day/week/month, this period vs previous).
 - Leads in the last 30 days: 1,298 vs 408 the 30 days before (+218%), mostly Instagram_ca (772 vs 209).
@@ -286,6 +286,7 @@ Working notes so a new session can pick up where the last one stopped.
   gets new cards (36 since Aug, last 7 Nov); EU Department likewise (last 14 Oct).
 - Growth on a previous value under 5 is shown as a count, not a percentage (all tabs).
 - Contracts tab rebuilt around service (serviceOf), status and one breakdown; reconciliation closed at the bottom.
+- All Leads tab removed (owner, 2026-11-11), with its endpoints (/api/leads, /api/leads.csv, /api/lead/:id/notes).
 
 ## Open questions (in order)
 1. ANSWERED: historical cards are empty in Odoo. Decide: build the Sheets reader (option A) or run
