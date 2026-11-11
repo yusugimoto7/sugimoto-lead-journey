@@ -286,6 +286,9 @@ Working notes so a new session can pick up where the last one stopped.
   gets new cards (36 since Aug, last 7 Nov); EU Department likewise (last 14 Oct).
 - Growth on a previous value under 5 is shown as a count, not a percentage (all tabs).
 - Contracts tab rebuilt around service (serviceOf), status and one breakdown; reconciliation closed at the bottom.
+- Contract sheets (n8n) are read alongside Odoo, not after it, and reused for 30 minutes (FEED_MINUTES) between
+  reads: a 5-minute refresh takes ~3 s. Warm endpoints answer in under 0.5 s; slowness is the free instance waking
+  (~30-60 s) plus the first full read (~70 s).
 - All Leads tab removed (owner, 2026-11-11), with its endpoints (/api/leads, /api/leads.csv, /api/lead/:id/notes).
 
 ## Open questions (in order)
