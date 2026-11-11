@@ -34,8 +34,10 @@ jobs:
           ODOO_DB: ${{ secrets.ODOO_DB }}
           ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
           ODOO_API_KEY: ${{ secrets.ODOO_API_KEY }}
-          PACK_PASSWORD: ${{ secrets.PACK_PASSWORD }}
-          PACK_KEY: ${{ secrets.PACK_KEY }}
+          # The page opens with the server's password unless a separate one is set. The hash key only needs to be
+          # secret and never shipped, so the Odoo key serves when PACK_KEY is not set.
+          PACK_PASSWORD: ${{ secrets.PACK_PASSWORD || secrets.DASHBOARD_PASSWORD }}
+          PACK_KEY: ${{ secrets.PACK_KEY || secrets.ODOO_API_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
