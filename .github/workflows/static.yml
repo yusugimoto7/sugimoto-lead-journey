@@ -1,10 +1,8 @@
-# Hourly build of the static dashboard (tools/build-pack.js) and its publication on GitHub Pages. The data file is
+# On-demand build of the static dashboard (tools/build-pack.js) and its publication on GitHub Pages. The data file is
 # encrypted with PACK_PASSWORD and carries no name, email or phone; the page asks for the password.
 name: Static dashboard
 
 on:
-  schedule:
-    - cron: '17 * * * *'
   workflow_dispatch:
 
 permissions:
